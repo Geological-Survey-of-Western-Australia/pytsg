@@ -42,6 +42,7 @@ sphinx_gallery_conf = {
     'ignore_pattern': r'__init__\.py',
     'examples_dirs': '../../examples',  # path to your example scripts
     'gallery_dirs': 'auto_examples',  # path to where to save gallery generated output
+    'write_computation_times': False,
 }
 
 templates_path = ['_templates']
@@ -62,4 +63,3 @@ rst_epilog = """
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
 html_theme = 'sphinx_rtd_theme'
-html_static_path = ['_static']

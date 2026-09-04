@@ -25,8 +25,8 @@ for data_dir in data_dirs:
     data = parse_tsg.read_package(data_dir)
 
     hf = plt.figure()
-    plt.plot(data.nir.wavelength, data.nir.spectra[0, 0:10, :].T)
-    plt.plot(data.tir.wavelength, data.tir.spectra[0, 0:10, :].T)
+    plt.plot(data.nir.wavelength, data.nir.spectra[0:10, :].T)
+    plt.plot(data.tir.wavelength, data.tir.spectra[0:10, :].T)
     plt.xlabel('Wavelength (nm)')
     plt.ylabel('Reflectance')
     plt.title(f'pytsg reads tsg files!\n{data_dir.name}')

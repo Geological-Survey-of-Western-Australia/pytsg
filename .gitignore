@@ -207,7 +207,6 @@ github/gitignore: A collection of useful .gitignore templates
 /py
 src/pytsg/__pycache__/**
 src/pytsg/__pycache__/**
-*doc
 *.tox
 *dist
 .vscode/settings.json
