@@ -1,8 +1,8 @@
 import unittest
 
-from src.pytsg import feature
-from numpy.typing import NDArray
 import numpy as np
+
+from src.pytsg import feature
 
 
 class TestFeatureExtraction(unittest.TestCase):

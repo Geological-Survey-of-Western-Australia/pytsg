@@ -3,18 +3,17 @@
 
 import re
 import struct
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, NamedTuple, Tuple, Union
-import warnings
+from typing import Any, NamedTuple, Optional, Union
 
 import numpy as np
 import pandas as pd
+from dhcomp.composite import _greedy_composite
 from numpy.typing import NDArray
 from simplejpeg import decode_jpeg, encode_jpeg
 
-from dhcomp.composite import _greedy_composite
-from typing import Optional
 
 class ClassHeaders(NamedTuple):
     class_number: int
@@ -34,32 +33,38 @@ class ClassHeaders(NamedTuple):
 
 
 class CrasHeader(NamedTuple):
-    id: str  # starts with "CoreLog Linescan ".   If it starts with "CoreLog Linescan 1." then it supports compression (otherwise ignore ctype).
-    ns: int  # image width in pixels
-    nl: int  # image height in lines
-    nb: int  # number of bands (1 or 3  but always 3 for HyLogger 1 / 2 / 3)- added mir tsg for HyLogger 4
-    nb: int  # number of bands (1 or 3  but always 3 for HyLogger 1 / 2 / 3)- added mir tsg for HyLogger 4
-    org: int  # interleave (1=BIL  2=BIP  and compressed rasters are always BIP while uncompressed ones are always BIL)
-    dtype: int  # datatype (unused  always byte)
-    specny: int  # number of linescan lines per dataset sample
-    specnx: int  # unused
-    specpx: int  # unused  intended to be the linescan column that relates to the across-scan position of the (1D) spectral dataset
-    ctype: int  # compression type (0=uncompressed  1=jpeg chunks)
-    chunksize: int  # number of image lines per chunk for jpeg-compressed rasters
-    nchunks: int  # number of compressed image chunks (jpeg compression)
-    csize32_obs: int  # size in bytes of comressed image data (OBSOLETE - not used anywhere any more.   However it will be set in old linescan rasters so I cant easily recycle it.   Also  there are some compressed rasters out there that are >4GB in size)
-    ntrays: int  # number of trays (number of tray-table records after the image data)
+    id: str           # starts with "CoreLog Linescan ". If it starts with "CoreLog Linescan 1." then it
+                      # supports compression (otherwise ignore ctype).
+    ns: int           # image width in pixels
+    nl: int           # image height in lines
+    nb: int           # number of bands (1 or 3 but always 3 for HyLogger 1 / 2 / 3)- added mir tsg for HL4
+    nb: int           # number of bands (1 or 3 but always 3 for HyLogger 1 / 2 / 3)- added mir tsg for HL4
+    org: int          # interleave (1=BIL 2=BIP and compressed rasters are always BIP while uncompressed ones
+                      #             are always BIL)
+    dtype: int        # datatype (unused  always byte)
+    specny: int       # number of linescan lines per dataset sample
+    specnx: int       # unused
+    specpx: int       # unused intended to be the linescan column that relates to the across-scan position of
+                      # the (1D) spectral dataset
+    ctype: int        # compression type (0=uncompressed  1=jpeg chunks)
+    chunksize: int    # number of image lines per chunk for jpeg-compressed rasters
+    nchunks: int      # number of compressed image chunks (jpeg compression)
+    csize32_obs: int  # size in bytes of comressed image data (OBSOLETE - not used anywhere any more. However
+                      # it will be set in old linescan rasters so I cant easily recycle it. Also there are
+                      # some compressed rasters out there that are >4GB in size)
+    ntrays: int       # number of trays (number of tray-table records after the image data)
     nsections: (
-        int  # number of sections (number of section-table records after the image data)
+        int           # number of sections (number of section-table records after the image data)
     )
-    finerep: int  # chip-mode datasets - number of spectral measurements per chip bucket (and theres one image frame per bucket)
-    jpqual: int  # jpeg quality factor  0..100 (jpeg compression)
+    finerep: int      # chip-mode datasets - number of spectral measurements per chip bucket (and theres one
+                      # image frame per bucket)
+    jpqual: int       # jpeg quality factor  0..100 (jpeg compression)
 
 
 class TrayInfo(NamedTuple):
     utlengthmm: float  # "untrimmed" length of tray imagery in mm
     baseheightmm: float  # height of bottom of tray above table
-    coreheightmm: float  # height of (top of) core above ..something or other (I don't actually use it for the linescan raster)
+    coreheightmm: float  # height of (top of) core above ..something or other (not used for linescan raster)
     nsections: int  # number of core sections
     nlines: int  # number of image lines in this tray
 
@@ -233,7 +238,8 @@ def read_cras(
         file.seek(64)
         b = file.read(4 * (header.nchunks + 1))
         # fmt: off
-        chunk_offset_array: NDArray[np.int64] = np.ndarray((header.nchunks + 1), np.uint32, b).astype(np.uint64)
+        chunk_offset_shape = (header.nchunks + 1)
+        chunk_offset_array: NDArray[np.int64] = np.ndarray(chunk_offset_shape, np.uint32, b).astype(np.uint64)
         # deal with +4gb cras files by using uint64
         diff_offset: NDArray[np.uint64] = np.diff(chunk_offset_array, prepend=1).astype(np.uint64)
         overflow_finder: NDArray[np.int64] = np.where(diff_offset < -1)[0].astype(np.uint64)
@@ -242,8 +248,8 @@ def read_cras(
         if len(overflow_finder) > 1:
             raise IndexError("Chunk offset array wraps around more than once")
         if len(overflow_finder) > 0:
-            # add np.int32 max to the offset array this should be ok, unless there is a case where there is more than 1 overflow,
-            # in which case I expect the cras reading component to crash
+            # add np.int32 max to the offset array this should be ok, unless there is a case where there is
+            # more than 1 overflow, in which case I expect the cras reading component to crash
             chunk_offset_array[overflow_finder[0] :] += np.int64(
                 np.iinfo(np.uint32).max + 1
             )
@@ -254,7 +260,7 @@ def read_cras(
         # assume that the drive backing the file has enough space to store the files
         # assume that there is enough ram to load the cras
         array_ok: bool = True
-        cras: Union[NDArray, zarr.core.Array]  # type: ignore
+        cras: Union[NDArray, "zarr.core.Array"]  # type: ignore
         if backing_file is not None:
             import zarr
             # the big file flag decompresses the jpg data into a zarr array
@@ -278,7 +284,7 @@ def read_cras(
             try:
                 cras = np.zeros((header.nl, header.ns, header.nb), dtype=np.uint8)
                 array_ok = True
-            except numpy.core._exceptions._ArrayMemoryError:
+            except np.core._exceptions._ArrayMemoryError:
                 print(
                     "This file is too big to fit in memory set big_file=True to dump to disk"
                 )
@@ -319,12 +325,12 @@ def read_cras(
         file.seek(info_table_start)
 
         tray: list[TrayInfo] = []
-        for i in range(header.ntrays):
+        for _i in range(header.ntrays):
             bytes = file.read(20)
             tray.append(TrayInfo(*struct.unpack(tray_info_format, bytes)))
 
         section: list[SectionInfo] = []
-        for i in range(header.nsections):
+        for _i in range(header.nsections):
             bytes = file.read(28)
             section.append(SectionInfo(*struct.unpack(section_info_format, bytes)))
     if backing_file is not None:
@@ -356,7 +362,7 @@ def composite_spectra(spectra: Spectra, length: int = 4) -> Spectra:
         section = sections[sidx]
         cut_points = _greedy_composite(secdist[sidx].values, length)
         tmp_section = section.values * 0
-        for n, (fr, to) in enumerate(zip(cut_points[:-1], cut_points[1:])):
+        for n, (fr, to) in enumerate(zip(cut_points[:-1], cut_points[1:], strict=True)):
             tmpidx = (secdist[sidx].values >= fr) & (secdist[sidx].values <= to)
             tmp_section[tmpidx] = n
         new_intervals[sidx.values] = tmp_section
@@ -393,7 +399,6 @@ def composite_spectra(spectra: Spectra, length: int = 4) -> Spectra:
     )
     spectra.sampleheaders = new_depths
     spectra.scalars = new_scalay
-    spectra.sampleheaders
     return spectra
 
 
@@ -447,12 +452,12 @@ def extract_chips(
         file.seek(info_table_start)
 
         tray: "list[TrayInfo]" = []
-        for i in range(header.ntrays):
+        for _i in range(header.ntrays):
             bytes = file.read(20)
             tray.append(TrayInfo(*struct.unpack(tray_info_format, bytes)))
 
         section: "list[SectionInfo]" = []
-        for i in range(header.nsections):
+        for _i in range(header.nsections):
             bytes = file.read(28)
             section.append(SectionInfo(*struct.unpack(section_info_format, bytes)))
 
@@ -641,7 +646,8 @@ def generate_chips(
         # as they are read to disk and the second to hold the image that we are going to export
         if header.nsections > 0 or header.ntrays > 0:
             # the tray info section if it exists should start after the last image
-            # the section info and if there is a tray info section then it should be after the tray info section
+            # the section info and if there is a tray info section then it should be after the tray info
+            # section
             info_table_start = (
                 64
                 + (header.nchunks + 1) * 4
@@ -651,12 +657,12 @@ def generate_chips(
             file.seek(info_table_start)
 
             tray: "list[TrayInfo]" = []
-            for i in range(header.ntrays):
+            for _i in range(header.ntrays):
                 bytes = file.read(20)
                 tray.append(TrayInfo(*struct.unpack(tray_info_format, bytes)))
 
             section: "list[SectionInfo]" = []
-            for i in range(header.nsections):
+            for _i in range(header.nsections):
                 bytes = file.read(28)
                 section.append(SectionInfo(*struct.unpack(section_info_format, bytes)))
 
@@ -671,8 +677,8 @@ def generate_chips(
         # nir/tir/mir spectra we use nir because it should always be there
         # once we have that information we are going to caculate the number of pixels required
         # in the y direction that represent a single spectrum and the option will also be to dump
-        # all the spectra to disk named as H_SAMPLE in a subfolder which will take an impressive amount of space
-        # but such are the vagaries of ML
+        # all the spectra to disk named as H_SAMPLE in a subfolder which will take an impressive amount of
+        # space but such are the vagaries of ML
         # I totally assume that these headers always exist in the scalars
 
         # here we will do some trickery to reindex unique combinations of tray and line
@@ -769,7 +775,8 @@ def generate_chips(
                     end_np = nr - nextra
                     if nextra == 0:
                         end_np = nr
-                    # case when curpos is gt manage this by appending all data in this chunk to the leading bin
+                    # case when curpos is gt manage this by appending all data in this chunk
+                    # to the leading bin
                     if curpos < end_pos:
                         working[curpos:end_pos, :, :] = np_image[0:end_np]
                         # put the remaining information into leading bin
@@ -895,7 +902,7 @@ def _parse_sample_header(
         tmp_sample.update({"sample": key_0})
         for j in kk[key_0].split():
             tmp_keys = _parse_kvp(j)
-            if not tmp_keys is None:
+            if tmp_keys is not None:
                 tmp_sample.update(tmp_keys)
         final.append(tmp_sample)
 
@@ -1104,7 +1111,7 @@ def _parse_tsg(
             tmp_out: dict[str, str] = {}
             for i in fstr[start:end]:
                 tmp = _parse_kvp(i)
-                if not tmp is None:
+                if tmp is not None:
                     tmp_out.update(tmp)
             d_info.update({k: tmp_out})
 
@@ -1197,29 +1204,29 @@ def read_package(
     f: Path
     for f in files:
         if f.name.endswith("tsg.tsg"):
-            setattr(file_pairs, "nir_tsg", f)
+            file_pairs.nir_tsg = f
 
         elif f.name.endswith("tsg.bip"):
-            setattr(file_pairs, "nir_bip", f)
+            file_pairs.nir_bip = f
 
         elif f.name.endswith("tsg_tir.tsg"):
-            setattr(file_pairs, "tir_tsg", f)
+            file_pairs.tir_tsg = f
 
         elif f.name.endswith("tsg_tir.bip"):
-            setattr(file_pairs, "tir_bip", f)
+            file_pairs.tir_bip = f
 
-      
+
         elif f.name.endswith("tsg_mir.tsg"):
-            setattr(file_pairs, "mir_tsg", f)
+            file_pairs.mir_tsg = f
 
         elif f.name.endswith("tsg_mir.bip"):
-            setattr(file_pairs, "mir_bip", f)
+            file_pairs.mir_bip = f
 
         elif f.name.endswith("tsg_cras.bip"):
-            setattr(file_pairs, "cras", f)
+            file_pairs.cras = f
 
         elif f.name.endswith("tsg_hires.dat"):
-            setattr(file_pairs, "lidar", f)
+            file_pairs.lidar = f
         else:
             pass
 
@@ -1269,7 +1276,7 @@ def read_package(
         cras = Cras
 
     return TSG(nir,tir,mir, cras, lidar)
-    
+
 
 if __name__ == "main":
     foldername = "data/RC_hyperspectral_geochem"

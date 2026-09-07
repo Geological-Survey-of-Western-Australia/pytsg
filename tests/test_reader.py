@@ -1,6 +1,8 @@
-import unittest
-from src.pytsg import parse_tsg
 import tempfile
+import unittest
+
+from src.pytsg import parse_tsg
+
 
 class TestFileReaders(unittest.TestCase):
     def test_read_package(self):
@@ -35,7 +37,7 @@ class TestFileReaders(unittest.TestCase):
         self.assertListEqual(bsize, actual)
 if __name__ == "__main__":
     unittest.main()
-'''
+"""
     def test_composite_spectra(self):
         folder = r"example_data/27313_NDDH0505_Savage_River"
         cras_file = folder + "/27313_NDDH0505_Savage_River_tsg.bip"
@@ -51,5 +53,4 @@ if __name__ == "__main__":
             composite_spectra.sampleheaders.shape[0],
         ]
         self.assertListEqual([93, 93, 93], outsize)
-        
-'''
+"""
