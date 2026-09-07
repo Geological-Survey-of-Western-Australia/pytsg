@@ -56,4 +56,5 @@ dev = [
     "myst-parser>=5.1.0",
     "sphinx-autodoc-typehints>=3.13.4",
     "matplotlib>=3.11.1",
+    "sphinx-autobuild>=2025.8.25",
 ]
