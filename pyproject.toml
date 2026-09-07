@@ -9,10 +9,10 @@ description = "Library to read .tsg file package"
 license = "MIT"
 readme = "README.md"
 dependencies = [
-    "numpy>1.23",
-    'pandas>1.4.3',
-    "simplejpeg>1.6.5",
-    "scipy>1.11.4",
+    "numpy>=2.3.0",
+    "pandas>=2.3.0",
+    "simplejpeg>=1.9.0",
+    "scipy>=1.16.0",
     'dhcomp',
 ]
 keywords = [

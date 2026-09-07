@@ -1051,10 +1051,10 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "dhcomp" },
-    { name = "numpy", specifier = ">1.23" },
-    { name = "pandas", specifier = ">1.4.3" },
-    { name = "scipy", specifier = ">1.11.4" },
-    { name = "simplejpeg", specifier = ">1.6.5" },
+    { name = "numpy", specifier = ">=2.3.0" },
+    { name = "pandas", specifier = ">=2.3.0" },
+    { name = "scipy", specifier = ">=1.16.0" },
+    { name = "simplejpeg", specifier = ">=1.9.0" },
     { name = "zarr", marker = "extra == 'bigfile'", specifier = ">2.16.1" },
 ]
 provides-extras = ["bigfile"]
