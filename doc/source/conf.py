@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.abspath('../src/pytsg'))
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = 'pytsg'
-copyright = '2022, Ben Chi'
+copyright = '2022-%Y, Ben Chi, Geoscience Data Integrations Team - GSWA, & contributors'
 author = 'Ben Chi'
 
 # -- General configuration ---------------------------------------------------
