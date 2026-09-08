@@ -52,3 +52,9 @@ type-check:
 install:
 	@echo "Installing dependencies (incl. dev dependencies)..."
 	@uv sync --all-extras --all-groups
+
+test:
+	@uv run pytest -v --tb=short --disable-warnings
+
+coverage:
+	@uv run pytest --cov --cov-report=term --cov-report=html --tb=short --disable-warnings

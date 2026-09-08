@@ -60,6 +60,7 @@ dev = [
     "ruff>=0.16.6",
     "ty>=0.0.78",
     "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
 ]
 
 [tool.ruff]
@@ -70,3 +71,9 @@ select = ["B", "E", "F", "Q", "W", "I"]
 
 [tool.ruff.lint.flake8-quotes]
 inline-quotes = "double"
+
+[tool.coverage.run]
+omit = [
+    "tests/*",
+    "**/test_*.py",
+]
