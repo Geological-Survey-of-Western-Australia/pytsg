@@ -25,15 +25,17 @@ author = "Ben Chi"
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
-extensions = ["sphinx.ext.autodoc", "sphinx.ext.autosummary",  # to document the api
-              "sphinx.ext.viewcode",            # to add view code links
-              "sphinx.ext.coverage",
-              "sphinx.ext.napoleon",            # for parsing numpy/google docstrings
-              "sphinx_gallery.gen_gallery",     # to generate a gallery of examples
-              "sphinx_autodoc_typehints",
-              "myst_parser",                    # for parsing md files
-              "sphinx.ext.autosectionlabel"     # enables links to sections
-              ]
+extensions = [
+    "sphinx.ext.autodoc",
+    "sphinx.ext.autosummary",  # to document the api
+    "sphinx.ext.viewcode",  # to add view code links
+    "sphinx.ext.coverage",
+    "sphinx.ext.napoleon",  # for parsing numpy/google docstrings
+    "sphinx_gallery.gen_gallery",  # to generate a gallery of examples
+    "sphinx_autodoc_typehints",
+    "myst_parser",  # for parsing md files
+    "sphinx.ext.autosectionlabel",  # enables links to sections
+]
 
 autosummary_generate = True
 
