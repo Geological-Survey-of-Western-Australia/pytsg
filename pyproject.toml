@@ -58,6 +58,7 @@ dev = [
     "matplotlib>=3.11.1",
     "sphinx-autobuild>=2025.8.25",
     "ruff>=0.16.6",
+    "ty>=0.0.78",
 ]
 
 [tool.ruff]
