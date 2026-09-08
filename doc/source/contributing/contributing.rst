@@ -13,6 +13,25 @@ Developer Installation
     
         uv sync --all-extras --all-groups 
 
+Code Quality
+------------
+
+``pytsg`` uses `ruff <https://docs.astral.sh/ruff/>`_ for code formatting and linting, and `ty <https://docs.astral.sh/ty/>`_ for type checking. 
+
+.. code-block:: bash
+
+    # Check code formatting and linting issues
+    uv run ruff check .
+
+    # Fix code linting issues
+    uv run ruff check --fix .
+
+    # Format code
+    uv run ruff format
+
+    # Check type annotations
+    uv run ty check .
+
 Building ``pytsg`` Package
 --------------------------
 
