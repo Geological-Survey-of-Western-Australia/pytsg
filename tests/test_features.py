@@ -23,16 +23,12 @@ class TestFeatureExtraction(unittest.TestCase):
 
     def test_sqm_1d(self):
         results, _ = feature.sqm(self.wavelength, self.signal)
-        expectation = np.asanyarray([-0.12984183, -0.9112505, 19.70058995]).reshape(
-            1, 3
-        )
+        expectation = np.asanyarray([-0.12984183, -0.9112505, 19.70058995]).reshape(1, 3)
         np.testing.assert_allclose(results, expectation, atol=10e-3)
 
     def test_sqm_2d(self):
         results, _ = feature.sqm(self.wavelength, self.signal2)
-        expectation = np.asanyarray([-0.12984183, -0.9112505, 19.70058995]).reshape(
-            1, 3
-        )
+        expectation = np.asanyarray([-0.12984183, -0.9112505, 19.70058995]).reshape(1, 3)
         np.testing.assert_allclose(results, np.vstack([expectation] * 2), atol=10e-3)
 
     def test_gaussian_1d(self):

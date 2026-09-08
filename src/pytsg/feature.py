@@ -160,9 +160,7 @@ def fit_gaussian(
         x0 = np.asarray([1, 10, 1])
 
     for i in range(nspectra):
-        lsf = least_squares(
-            lambda x, i=i: spectra[i] - gaussian(wavelength, x[0], x[1], x[2]), x0=x0
-        )
+        lsf = least_squares(lambda x, i=i: spectra[i] - gaussian(wavelength, x[0], x[1], x[2]), x0=x0)
         parameters[i, :] = lsf.x
 
     return parameters

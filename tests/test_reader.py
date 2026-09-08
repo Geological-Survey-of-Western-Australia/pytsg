@@ -29,12 +29,14 @@ class TestFileReaders(unittest.TestCase):
         bip_file = folder + "/SWMB007d_chips_tsg.bip"
 
         spectra = parse_tsg.read_tsg_bip_pair(tsg_file, bip_file, "nir")
-        chip_generator = parse_tsg.generate_chips(cras_file, spectra,batch_size=12)
-        bsize:list[int] = [12, 12, 12, 12, 12, 12, 0]
-        actual:list[int] = []
+        chip_generator = parse_tsg.generate_chips(cras_file, spectra, batch_size=12)
+        bsize: list[int] = [12, 12, 12, 12, 12, 12, 0]
+        actual: list[int] = []
         for i in chip_generator:
             actual.append(len(i))
         self.assertListEqual(bsize, actual)
+
+
 if __name__ == "__main__":
     unittest.main()
 """

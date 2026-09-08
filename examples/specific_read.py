@@ -24,17 +24,17 @@ for fp in dir_demo_1.iterdir():
 # %%
 # Read bip files
 
-nir: Spectra = parse_tsg.read_tsg_bip_pair(dir_demo_1 / "SWMB007s_chips_tsg.tsg",
-                                           dir_demo_1 / "SWMB007s_chips_tsg.bip",
-                                           "nir")
+nir: Spectra = parse_tsg.read_tsg_bip_pair(
+    dir_demo_1 / "SWMB007s_chips_tsg.tsg", dir_demo_1 / "SWMB007s_chips_tsg.bip", "nir"
+)
 print(nir)
 
 # %%
 # Read tir files
 
-tir: Spectra = parse_tsg.read_tsg_bip_pair(dir_demo_1 / "SWMB007s_chips_tsg_tir.tsg",
-                                           dir_demo_1 / "SWMB007s_chips_tsg_tir.bip",
-                                           "tir")
+tir: Spectra = parse_tsg.read_tsg_bip_pair(
+    dir_demo_1 / "SWMB007s_chips_tsg_tir.tsg", dir_demo_1 / "SWMB007s_chips_tsg_tir.bip", "tir"
+)
 print(tir)
 
 # %%
