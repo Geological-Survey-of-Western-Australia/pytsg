@@ -44,12 +44,12 @@ def test_sqm_2d(wavelength, multi_spectra):
 
 
 def test_gaussian_1d(wavelength, single_spectra):
-    results = feature.fit_gaussian(wavelength, single_spectra, [1, 9, -5])
+    results = feature.fit_gaussian(wavelength, single_spectra, np.asarray([1, 9, -5]))
     expectation = np.asarray([-1, 0, 5]).reshape(1, 3)
     np.testing.assert_allclose(results, expectation, atol=10e-3)
 
 
 def test_gaussian_2d(wavelength, multi_spectra):
-    results = feature.fit_gaussian(wavelength, multi_spectra, [1, 9, -5])
+    results = feature.fit_gaussian(wavelength, multi_spectra, np.asarray([1, 9, -5]))
     expectation = np.asarray([-1, 0, 5]).reshape(1, 3)
     np.testing.assert_allclose(results, np.vstack([expectation] * 2), atol=10e-3)
