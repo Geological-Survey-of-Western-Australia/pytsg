@@ -8,7 +8,7 @@ import pandas as pd
 from numpy.typing import NDArray
 
 NDArrayOrZarrArray = NDArray | Any
-"""An ``np.ndarray`` or ``zarr.Array``."""
+"""An object of type ``np.ndarray`` or ``zarr.Array``."""
 
 
 class ClassHeaders(NamedTuple):
@@ -29,47 +29,81 @@ class ClassHeaders(NamedTuple):
 
 
 class CrasHeader(NamedTuple):
-    id: str  # starts with "CoreLog Linescan ".
-    ns: int  # image width in pixels
-    nl: int  # image height in lines
-    nb: int  # number of bands
-    org: int  # interleave (1=BIL, 2=BIP)
-    dtype: int  # datatype (unused; always byte)
-    specny: int  # number of linescan lines per dataset sample
-    specnx: int  # unused
-    specpx: int  # unused across-scan position
-    ctype: int  # compression type (0=uncompressed, 1=JPEG chunks)
-    chunksize: int  # number of image lines per JPEG chunk
-    nchunks: int  # number of compressed image chunks
-    csize32_obs: int  # obsolete compressed image size field
-    ntrays: int  # number of tray records after image data
-    nsections: int  # number of section records after image data
-    finerep: int  # chip-mode spectral measurements per chip bucket
-    jpqual: int  # JPEG quality factor
+    id: str
+    """starts with 'CoreLog Linescan'"""
+    ns: int
+    """image width in pixels"""
+    nl: int
+    """image height in lines"""
+    nb: int
+    """number of bands"""
+    org: int
+    """interleave (1=BIL, 2=BIP)"""
+    dtype: int
+    """datatype (unused; always byte)"""
+    specny: int
+    """number of linescan lines per dataset sample"""
+    specnx: int
+    """unused"""
+    specpx: int
+    """unused across-scan position"""
+    ctype: int
+    """compression type (0=uncompressed, 1=JPEG chunks)"""
+    chunksize: int
+    """number of image lines per JPEG chunk"""
+    nchunks: int
+    """number of compressed image chunks"""
+    csize32_obs: int
+    """obsolete compressed image size field"""
+    ntrays: int
+    """number of tray records after image data"""
+    nsections: int
+    """number of section records after image data"""
+    finerep: int
+    """chip-mode spectral measurements per chip bucket"""
+    jpqual: int
+    """JPEG quality factor"""
 
 
 class TrayInfo(NamedTuple):
-    utlengthmm: float  # untrimmed length of tray imagery in mm
-    baseheightmm: float  # height of bottom of tray above table
-    coreheightmm: float  # height of the core above the table
-    nsections: int  # number of core sections
-    nlines: int  # number of image lines in this tray
+    utlengthmm: float
+    """untrimmed length of tray imagery in mm"""
+    baseheightmm: float
+    """height of bottom of tray above table"""
+    coreheightmm: float
+    """height of the core above the table"""
+    nsections: int
+    """number of core sections"""
+    nlines: int
+    """number of image lines in this tray"""
 
 
 class SectionInfo(NamedTuple):
-    utlengthmm: float  # untrimmed length of imagery in mm
-    startmm: float  # start position along scan in mm
-    endmm: float  # end position in mm
-    trimwidthmm: float  # active image width in mm
-    startcol: int  # first active image column
-    endcol: int  # final active image column
-    nlines: int  # number of image lines in this section
+    utlengthmm: float
+    """untrimmed length of imagery in mm"""
+    startmm: float
+    """start position along scan in mm"""
+    endmm: float
+    """end position in mm"""
+    trimwidthmm: float
+    """active image width in mm"""
+    startcol: int
+    """first active image column"""
+    endcol: int
+    """final active image column"""
+    nlines: int
+    """number of image lines in this section"""
 
 
 class BandHeaders(NamedTuple):
+    """Metadata associated with each scalar column. e.g. associated classes"""
+
     band: int
+    """Index of the band"""
     name: str
+    """Name of the band"""
     class_number: Union[int, str, float]
+    """id of the classes used in this scalar column"""
     flag: int
 
 
@@ -79,29 +113,46 @@ class Cras:
 
     image: NDArrayOrZarrArray
     """Typically an ``np.ndarray`` or a ``zarr.Array`` with a backing file."""
-
     tray: list[TrayInfo]
+    """Tray metadata"""
     section: list[SectionInfo]
+    """Tray section metadata"""
 
 
 @dataclass
 class Spectra:
+    """The raw spectra, bandheaders, and scalar data for a given spectral range"""
+
     spectrum_name: str
+    """Name of the spectral range (e.g. NIR)"""
     spectra: NDArray
+    """The RAW spectra"""
     wavelength: NDArray
+    """Wavelengths"""
     sampleheaders: pd.DataFrame
+    """Index information associated with each spectrum sample"""
     classes: list[dict[str, Any]]
+    """Class definitions. e.g. Mineral species/groups"""
     bandheaders: list[BandHeaders]
+    """Metadata associated with each scalar column. e.g. associated classes"""
     scalars: pd.DataFrame
+    """Scalar data associated with, or derived from, the spectra"""
 
 
 @dataclass
 class TSG:
+    """A collection of all the data in a TSG dataset"""
+
     nir: Spectra
+    """Near-infrared spectra and scalar data"""
     tir: Optional[Spectra] = None
+    """Thermal-infrared spectra and scalar data"""
     mir: Optional[Spectra] = None
+    """Mid-infrared spectra and scalar data"""
     cras: Optional[Cras] = None
+    """Imagery data"""
     lidar: Optional[NDArray] = None
+    """LiDAR/profilemetry data"""
 
     @property
     def available(self) -> tuple[str, ...]:

@@ -37,6 +37,8 @@ extensions = [
     "sphinx.ext.autosectionlabel",  # enables links to sections
 ]
 
+autosectionlabel_prefix_document = True
+
 autosummary_generate = True
 
 sphinx_gallery_conf = {

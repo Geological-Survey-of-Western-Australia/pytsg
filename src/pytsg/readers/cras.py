@@ -21,13 +21,19 @@ from ..models import (
 
 
 def read_cras(filename: Union[str, Path], backing_file: Union[str, Path, None] = None) -> Cras:
-    """Read a cras file
+    """
+    Read the core imagery from a cras (compressed raster) file.
+
+    We currently read the entire _cras.bip file which can cause issues due to memory allocation
+    so for large files you can opt to convert the data into a zarr file first by providing a path
+    to store a .zarr file via `backing_file`.
 
     Args:
-        filename: filename to read
+        filename (Union[str, Path]): the _cras.bip file
+        backing_file (Union[str, Path, None], optional): Path to save a .zarr backing file. Defaults to None.
 
     Returns:
-        A cras object
+        Cras: imagery data
     """
     section_info_format: str = "4f3i"
     tray_info_format: str = "3f2i"
@@ -150,11 +156,18 @@ def read_cras(filename: Union[str, Path], backing_file: Union[str, Path, None] =
 def composite_spectra(spectra: Spectra, length: int = 4) -> Spectra:
     """
     Composites the spectra to a target interval length in mm
-    uses dhcomp's greedy_composite internally
-    keeps all the information pertaining to depth registration but looses
-    all the other parameters in the scalars so there is none of the extra information that
-    tsg normally provides
+    using dhcomp's greedy_composite internally.
 
+    The process keeps all the information pertaining to depth registration
+    but looses all the other parameters in the scalars so there is none of
+    the extra information that tsg normally provides
+
+    Args:
+        spectra (Spectra): Spectral data to composite
+        length (int, optional): target interval. Defaults to 4.
+
+    Returns:
+        Spectra: data with a new interval
     """
     secdist = spectra.sampleheaders["X"].astype(float).map(np.round).copy()
     sections = spectra.sampleheaders["T"] + spectra.sampleheaders["L"]

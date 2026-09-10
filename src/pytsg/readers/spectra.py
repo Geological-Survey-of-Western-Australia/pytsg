@@ -194,7 +194,24 @@ def read_spectra(
     *,
     spectrum_name: str = "nir",
 ) -> Spectra:
-    """Read one TSG metadata/data spectral pair eagerly."""
+    """
+    Returns the spectra and scalar data contained in a .tsg/.bip file pair.
+
+    Args:
+        tsg_file (Union[Path, str]): path to .tsg file
+        bip_file (Union[Path, str]): path to matching .bip file
+        spectrum_name (str, optional): nir/tir. Defaults to "nir".
+
+    Returns:
+        Spectra: A Spectra object containing the raw spectra, scalars, and metadata
+
+    Example:
+        >>> tir = read_spectra(
+        >>>     "DDH1_tsg_tir.tsg",
+        >>>     "DDH1_tsg_tir.bip",
+        >>>     spectrum_name="tir",
+        >>> )
+    """
     fstr = _read_tsg_file(tsg_file)
     headers = _find_header_sections(fstr)
     info = _parse_tsg(fstr, headers)
