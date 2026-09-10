@@ -1,3 +1,10 @@
+"""
+pytsg
+=====
+
+Library for reading .tsg file packages
+"""
+
 from importlib.metadata import PackageNotFoundError, version
 
 try:
@@ -7,7 +14,7 @@ except PackageNotFoundError:
     __version__ = "0.0.0"
 
 from .api import read_cras, read_lidar, read_spectra, read_tsg
-from .parse_tsg import TSG, Cras, Spectra
+from .models import TSG, Cras, Spectra
 
 __all__ = [
     "__version__",
