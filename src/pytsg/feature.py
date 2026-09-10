@@ -1,4 +1,4 @@
-from typing import Callable, Union
+from typing import Callable, Optional, Union
 
 import numpy as np
 import numpy.polynomial.polynomial as poly
@@ -24,7 +24,7 @@ def band_extractor(
     spectra: NDArray,
     start: int = 0,
     end: int = -1,
-    statistic: list[Callable] = None,
+    statistic: Optional[list[Callable[..., object]]] = None,
 ) -> NDArray:
     """
     Function to extract band statistics from a spectra use of a list of callables.
@@ -132,7 +132,7 @@ def sqm(
 def fit_gaussian(
     wavelength: NDArray,
     spectra: NDArray,
-    x0: NDArray = None,
+    x0: Optional[NDArray] = None,
 ) -> NDArray[np.float64]:
     """Function to optimise a gaussian fit to the spectra using least squares
 
