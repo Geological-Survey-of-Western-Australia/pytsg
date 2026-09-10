@@ -5,13 +5,16 @@ import struct
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, NamedTuple, Optional, Union
+from typing import Any, Iterator, NamedTuple, Optional, Union
 
 import numpy as np
 import pandas as pd
 from dhcomp.composite import _greedy_composite
 from numpy.typing import NDArray
 from simplejpeg import decode_jpeg, encode_jpeg
+
+type NDArrayOrZarrArray = NDArray | Any
+"""An `np.NDArray` or `zarr.Array`"""
 
 
 class ClassHeaders(NamedTuple):
@@ -79,13 +82,20 @@ class SectionInfo(NamedTuple):
 class BandHeaders(NamedTuple):
     band: int
     name: str
-    class_number: int
+    class_number: Union[int, str, float]
     flag: int  # I'm not sure what this does but 2 indicates that it is a mappable class
 
 
 @dataclass
 class Cras:
-    image: NDArray
+    """
+    The cras file ("compressed raster") contains the core imagery
+    """
+
+    image: NDArrayOrZarrArray
+    """
+    Typically an `np.NDArray` but will be a `zarr.Array` if cras is loaded with a backing file.
+    """
     tray: "list[TrayInfo]"
     section: "list[SectionInfo]"
 
@@ -104,14 +114,48 @@ class Spectra:
 @dataclass
 class TSG:
     nir: Spectra
-    tir: Optional[Spectra]
-    mir: Optional[Spectra]
-    cras: Optional[Cras]
-    lidar: Optional[NDArray]
+    tir: Optional[Spectra] = None
+    mir: Optional[Spectra] = None
+    cras: Optional[Cras] = None
+    lidar: Optional[NDArray] = None
+
+    @property
+    def available(self) -> tuple[str, ...]:
+        """Return the names of components currently present in this dataset."""
+        component_names = ("nir", "tir", "mir", "cras", "lidar")
+        return tuple(name for name in component_names if getattr(self, name) is not None)
+
+    @staticmethod
+    def _component_summary(name: str, component: object) -> str:
+        if component is None:
+            return f"{name}: absent"
+        if isinstance(component, Spectra):
+            return (
+                f"{name}: Spectra("
+                f"spectra_shape={component.spectra.shape}, "
+                f"spectra_dtype={component.spectra.dtype}, "
+                f"wavelength_shape={component.wavelength.shape}, "
+                f"sampleheaders_shape={component.sampleheaders.shape}, "
+                f"scalars_shape={component.scalars.shape})"
+            )
+        if isinstance(component, Cras):
+            return (
+                f"{name}: Cras("
+                f"image_shape={component.image.shape}, "
+                f"image_dtype={component.image.dtype}, "
+                f"tray_count={len(component.tray)}, "
+                f"section_count={len(component.section)})"
+            )
+        if isinstance(component, np.ndarray):
+            return f"{name}: ndarray(shape={component.shape}, dtype={component.dtype})"
+        return f"{name}: {type(component).__name__}"
 
     def __repr__(self) -> str:
-        tsg_info: str = "This is a TSG file"
-        return tsg_info
+        lines = ["TSG(", f"  available={self.available!r},"]
+        for name in ("nir", "tir", "mir", "cras", "lidar"):
+            lines.append(f"  {self._component_summary(name, getattr(self, name))},")
+        lines.append(")")
+        return "\n".join(lines)
 
 
 class FilePairs:
@@ -126,79 +170,73 @@ class FilePairs:
     lidar: Union[Path, None] = None
     cras: Union[Path, None] = None
 
-    def _get_bip_tsg_pair(self, spectrum: str):
+    def add_file(self, attribute: str, filename: Path) -> None:
+        """Add an inventory file and reject duplicate component files."""
+        current = getattr(self, attribute)
+        if current is not None:
+            raise ValueError(f"Multiple {attribute} files found: {current.name!r} and {filename.name!r}.")
+        setattr(self, attribute, filename)
+
+    def validate(self) -> None:
+        """Validate all discovered spectral metadata/data file pairs."""
+        for spectrum in ("nir", "tir", "mir"):
+            tsgfile: Union[Path, None] = getattr(self, f"{spectrum}_tsg")
+            bipfile: Union[Path, None] = getattr(self, f"{spectrum}_bip")
+            label = spectrum.upper()
+
+            if tsgfile is None and bipfile is None:
+                if spectrum == "nir":
+                    raise ValueError("Missing required NIR spectral pair: expected .tsg and .bip files.")
+                continue
+
+            if tsgfile is None:
+                if bipfile is None:
+                    raise ValueError(f"Missing {label} spectral pair: expected .tsg and .bip files.")
+                raise ValueError(
+                    f"Incomplete {label} spectral pair: found {bipfile.name!r} without a matching .tsg file."
+                )
+            if bipfile is None:
+                raise ValueError(
+                    f"Incomplete {label} spectral pair: found {tsgfile.name!r} without a matching .bip file."
+                )
+            if tsgfile.stem != bipfile.stem:
+                raise ValueError(
+                    f"Mismatched {label} spectral pair: {tsgfile.name!r} and {bipfile.name!r} "
+                    "have different stems."
+                )
+
+    def _get_bip_tsg_pair(self, spectrum: str) -> Optional[tuple[Path, Path]]:
         tsgfile: Union[Path, None] = getattr(self, f"{spectrum}_tsg")
         bipfile: Union[Path, None] = getattr(self, f"{spectrum}_bip")
 
-        has_tsg: bool = isinstance(tsgfile, Path)
-        has_bip: bool = isinstance(bipfile, Path)
-        names_match: bool
-        if has_tsg and has_bip:
-            names_match = bipfile.stem == tsgfile.stem
-        else:
-            names_match = False
-
-        if has_bip and has_tsg and names_match:
-            pairs = (tsgfile, bipfile)
-        else:
-            pairs = None
-        return pairs
+        if isinstance(tsgfile, Path) and isinstance(bipfile, Path) and tsgfile.stem == bipfile.stem:
+            return (tsgfile, bipfile)
+        return None
 
     def _get_lidar(self) -> Union[Path, None]:
-        has_lidar: bool = ("lidar" in self.__dict__.keys()) and (isinstance(self.lidar, Path))
-        if has_lidar:
-            pairs = self.lidar
-        else:
-            pairs = None
-        return pairs
+        if isinstance(self.lidar, Path):
+            return self.lidar
+        return None
 
     def _get_cras(self) -> Union[Path, None]:
-        has_cras: bool = isinstance(self.cras, Path)
-        if has_cras:
-            pairs = self.cras
-        else:
-            pairs = None
-        return pairs
+        if isinstance(self.cras, Path):
+            return self.cras
+        return None
 
     def valid_nir(self) -> bool:
-        result = self._get_bip_tsg_pair("nir")
-        if result is None:
-            valid = False
-        else:
-            valid = True
-        return valid
+        return self._get_bip_tsg_pair("nir") is not None
 
     def valid_tir(self) -> bool:
-        result = self._get_bip_tsg_pair("tir")
-        if result is None:
-            valid = False
-        else:
-            valid = True
-        return valid
+        return self._get_bip_tsg_pair("tir") is not None
 
     def valid_mir(self) -> bool:
-        result = self._get_bip_tsg_pair("mir")
-        if result is None:
-            valid = False
-        else:
-            valid = True
-        return valid
+        return self._get_bip_tsg_pair("mir") is not None
 
     def valid_lidar(self) -> bool:
-        result = self._get_lidar()
-        if result is None:
-            valid = False
-        else:
-            valid = True
-        return valid
+        return self._get_lidar() is not None
 
     def valid_cras(self) -> bool:
-        result = self._get_cras()
-        if result is None:
-            valid = False
-        else:
-            valid = True
-        return valid
+        return self._get_cras() is not None
 
 
 def read_cras(filename: Union[str, Path], backing_file: Union[str, Path, None] = None) -> Cras:
@@ -219,9 +257,10 @@ def read_cras(filename: Union[str, Path], backing_file: Union[str, Path, None] =
         # file = mmap.mmap(fopen.fileno(), 0)
 
         # read the 64 byte header from the .cras file
-        bytes = file.read(64)
+        header_bytes = file.read(64)
         # create the header information
-        header = CrasHeader(*struct.unpack(head_format, bytes))
+        header_vals = struct.unpack(head_format, header_bytes)
+        header = CrasHeader(header_vals[0].decode("utf-8"), *header_vals[1:])
 
         # Create the chunk_offset_array
         # which determines which point of the file to enter to read the .jpg image
@@ -230,7 +269,9 @@ def read_cras(filename: Union[str, Path], backing_file: Union[str, Path, None] =
         b = file.read(4 * (header.nchunks + 1))
         # fmt: off
         chunk_offset_shape = (header.nchunks + 1)
-        chunk_offset_array: NDArray[np.int64] = np.ndarray(chunk_offset_shape, np.uint32, b).astype(np.uint64)
+        chunk_offset_array: NDArray[np.uint64] = np.ndarray(
+            chunk_offset_shape, np.uint32, b
+        ).astype(np.uint64)
         # deal with +4gb cras files by using uint64
         diff_offset: NDArray[np.uint64] = np.diff(chunk_offset_array, prepend=1).astype(np.uint64)
         overflow_finder: NDArray[np.int64] = np.where(diff_offset < -1)[0].astype(np.uint64)
@@ -249,9 +290,9 @@ def read_cras(filename: Union[str, Path], backing_file: Union[str, Path, None] =
         # assume that the drive backing the file has enough space to store the files
         # assume that there is enough ram to load the cras
         array_ok: bool = True
-        cras: Union[NDArray, "zarr.core.Array"]  # type: ignore
+        cras: NDArrayOrZarrArray
         if backing_file is not None:
-            import zarr
+            import zarr  # ty: ignore[unresolved-import]
 
             # the big file flag decompresses the jpg data into a zarr array
             # with zarr it is important to ensure that you set the chunks appropriately
@@ -262,7 +303,7 @@ def read_cras(filename: Union[str, Path], backing_file: Union[str, Path, None] =
             else:
                 outcras = backing_file
 
-            cras = zarr.open(
+            cras = zarr.open_array(
                 str(outcras),
                 mode="w",
                 shape=(header.nl, header.ns, header.nb),
@@ -274,7 +315,7 @@ def read_cras(filename: Union[str, Path], backing_file: Union[str, Path, None] =
             try:
                 cras = np.zeros((header.nl, header.ns, header.nb), dtype=np.uint8)
                 array_ok = True
-            except np.core._exceptions._ArrayMemoryError:
+            except MemoryError:
                 print("This file is too big to fit in memory set big_file=True to dump to disk")
                 array_ok = False
                 cras = np.zeros(1, dtype=np.uint8)
@@ -295,7 +336,7 @@ def read_cras(filename: Union[str, Path], backing_file: Union[str, Path, None] =
                 img = decode_jpeg(chunk, colorspace="BGR")
                 # reverse the channels
                 # and flip the image upsidedown
-                np_image = np.flipud(img)  # type: ignore
+                np_image = np.flipud(img)
                 nr = np_image.shape[0]
                 cras[curpos : (curpos + nr), :, :] = np_image
                 curpos = curpos + nr
@@ -317,8 +358,9 @@ def read_cras(filename: Union[str, Path], backing_file: Union[str, Path, None] =
             bytes = file.read(28)
             section.append(SectionInfo(*struct.unpack(section_info_format, bytes)))
     if backing_file is not None:
-        pd.DataFrame(section).to_csv(backing_file.with_suffix(".section"))
-        pd.DataFrame(tray).to_csv(backing_file.with_suffix(".tray"))
+        backing_path = Path(backing_file)
+        pd.DataFrame(section).to_csv(backing_path.with_suffix(".section"))
+        pd.DataFrame(tray).to_csv(backing_path.with_suffix(".tray"))
 
     output = Cras(cras, tray, section)
     return output
@@ -400,9 +442,10 @@ def extract_chips(
     head_format: str = "20s2I8h4I2h"
     file = open(filename, "rb")
     # read the 64 byte header from the .cras file
-    bytes = file.read(64)
+    header_bytes = file.read(64)
     # create the header information
-    header = CrasHeader(*struct.unpack(head_format, bytes))
+    header_vals = struct.unpack(head_format, header_bytes)
+    header = CrasHeader(header_vals[0].decode("utf-8"), *header_vals[1:])
 
     # Create the chunk_offset_array
     # which determines which point of the file to enter to read the .jpg image
@@ -489,7 +532,7 @@ def extract_chips(
     curpos: int = 0
     nr: int
     pos_fill: NDArray[np.int32]
-    idx_bin_fill: NDArray[np.bool8]
+    idx_bin_fill: NDArray[np.bool_]
     leading_bin: NDArray[np.uint8] = np.zeros((header.chunksize, header.ns, header.nb), dtype="uint8")
     total_offset: int
     chunksize_in_bytes: int
@@ -497,7 +540,7 @@ def extract_chips(
     end_pos: int
     nextra: int
     end_np: int
-    idx_section: NDArray[np.bool8]
+    idx_section: NDArray[np.bool_]
     cut_array: NDArray[np.int32]
     n_cuts: int
     tmp_file: str
@@ -580,7 +623,7 @@ def generate_chips(
     spectra: Spectra,
     centre_cut: bool = True,
     batch_size: int = 256,
-) -> tuple[NDArray]:
+) -> Iterator[tuple[NDArray[np.uint8], ...]]:
     """
     creates an generator that generates the image tiles the last batch is not guaranteed to be the target size
     avoids having to write to folder, useful for processing files without having to first write to disk.
@@ -591,9 +634,10 @@ def generate_chips(
     head_format: str = "20s2I8h4I2h"
     with open(filename, "rb") as file:
         # read the 64 byte header from the .cras file
-        bytes = file.read(64)
+        header_bytes = file.read(64)
         # create the header information
-        header = CrasHeader(*struct.unpack(head_format, bytes))
+        header_vals = struct.unpack(head_format, header_bytes)
+        header = CrasHeader(header_vals[0].decode("utf-8"), *header_vals[1:])
 
         # Create the chunk_offset_array
         # which determines which point of the file to enter to read the .jpg image
@@ -681,7 +725,7 @@ def generate_chips(
         curpos: int = 0
         nr: int
         pos_fill: NDArray[np.int32]
-        idx_bin_fill: NDArray[np.bool8]
+        idx_bin_fill: NDArray[np.bool_]
         leading_bin: NDArray[np.uint8] = np.zeros((header.chunksize, header.ns, header.nb), dtype="uint8")
         total_offset: int
         chunksize_in_bytes: int
@@ -689,7 +733,7 @@ def generate_chips(
         end_pos: int
         nextra: int
         end_np: int
-        idx_section: NDArray[np.bool8]
+        idx_section: NDArray[np.bool_]
         cut_array: NDArray[np.int32]
         n_cuts: int
         cutouts: list[NDArray[np.uint8]] = []
@@ -990,7 +1034,7 @@ def _parse_bandheaders(bandheaders: "list[str]") -> "list[BandHeaders]":
     info: str
     split_info: "list[str]"
     name: str
-    class_name: int
+    class_name: Union[int, str, float]
     flag: int
     out: list[BandHeaders] = []
     for bh in bandheaders:
@@ -1070,7 +1114,7 @@ def _parse_scalars(
         band_value = scalars[:, i.band]
         # handle flag 13 that has a path to plsscalars
         if i.flag == 2:
-            if i.class_number > 0:
+            if isinstance(i.class_number, int) and i.class_number > 0:
                 # replace missing values with `nodata (defaulting to -1)
                 # Note: the integer shouldn't exist in the `classes` keys
                 bv = np.where(
@@ -1110,11 +1154,11 @@ def read_tsg_bip_pair(tsg_file: Union[Path, str], bip_file: Union[Path, str], sp
     return package
 
 
-def read_package(
+def _read_tsg_package(
     foldername: Union[str, Path],
     read_cras_file: bool = False,
     extract_cras: bool = False,
-    imageoutput: Union[str, None] = None,
+    imageoutput: Union[str, Path, None] = None,
     backing_file: Union[Path, str, None] = None,
 ) -> TSG:
     # convert string to Path because we are wanting to use Pathlib objects to manage the folder structure
@@ -1124,95 +1168,100 @@ def read_package(
     if not foldername.exists():
         raise FileNotFoundError("The directory does not exist.")
 
-    # we are parsing the folder structure here and checking that
-    # pairs of files exist in this case we are making sure
-    # that there are .tsg files with corresponding .bip files
-    # we will parse the lidar height data because we can
-
-    # process here is to map the files that we need together
-    # tir and nir files and mir in hylogger 4
-    #
-    # deal the files to the type
-
+    # Inventory files in a stable order and keep only the supported TSG package components.
     file_pairs = FilePairs()
-    files = foldername.glob("*.*")
-    f: Path
-    for f in files:
-        if f.name.endswith("tsg.tsg"):
-            file_pairs.nir_tsg = f
+    files = sorted(
+        (path for path in foldername.iterdir() if path.is_file()),
+        key=lambda path: (path.name.casefold(), path.name),
+    )
+    for file in files:
+        name = file.name.casefold()
+        attribute: Optional[str] = None
+        if name.endswith("tsg_tir.tsg"):
+            attribute = "tir_tsg"
+        elif name.endswith("tsg_tir.bip"):
+            attribute = "tir_bip"
+        elif name.endswith("tsg_mir.tsg"):
+            attribute = "mir_tsg"
+        elif name.endswith("tsg_mir.bip"):
+            attribute = "mir_bip"
+        elif name.endswith("tsg.tsg"):
+            attribute = "nir_tsg"
+        elif name.endswith("tsg.bip"):
+            attribute = "nir_bip"
+        elif name.endswith("tsg_cras.bip"):
+            attribute = "cras"
+        elif name.endswith("hires.dat"):
+            attribute = "lidar"
 
-        elif f.name.endswith("tsg.bip"):
-            file_pairs.nir_bip = f
+        if attribute is not None:
+            file_pairs.add_file(attribute, file)
 
-        elif f.name.endswith("tsg_tir.tsg"):
-            file_pairs.tir_tsg = f
+    # Validate every present spectral pair before opening any source file.
+    file_pairs.validate()
 
-        elif f.name.endswith("tsg_tir.bip"):
-            file_pairs.tir_bip = f
+    nir_pair = file_pairs._get_bip_tsg_pair("nir")
+    if nir_pair is None:
+        raise ValueError("Missing required NIR spectral pair: expected .tsg and .bip files.")
+    nir = read_tsg_bip_pair(nir_pair[0], nir_pair[1], "nir")
 
-        elif f.name.endswith("tsg_mir.tsg"):
-            file_pairs.mir_tsg = f
-
-        elif f.name.endswith("tsg_mir.bip"):
-            file_pairs.mir_bip = f
-
-        elif f.name.endswith("tsg_cras.bip"):
-            file_pairs.cras = f
-
-        elif f.name.endswith("tsg_hires.dat"):
-            file_pairs.lidar = f
-        else:
-            pass
-
-    # once we have paired the .tsg and .bip files run the reader
-    # for the nir/swir and then tir
-    # read nir/swir
-    nir: Spectra
-    mir: Optional[Spectra]
-    tir: Optional[Spectra]
-    lidar: Optional[NDArray]
-    cras: Optional[Cras] = None
-
-    if file_pairs.valid_nir():
-        nir = read_tsg_bip_pair(file_pairs.nir_tsg, file_pairs.nir_bip, "nir")
+    tir_pair = file_pairs._get_bip_tsg_pair("tir")
+    if tir_pair is None:
+        tir = None
     else:
-        nir = Spectra
+        tir = read_tsg_bip_pair(tir_pair[0], tir_pair[1], "tir")
 
-    if file_pairs.valid_tir():
-        tir = read_tsg_bip_pair(file_pairs.tir_tsg, file_pairs.tir_bip, "tir")
+    mir_pair = file_pairs._get_bip_tsg_pair("mir")
+    if mir_pair is None:
+        mir = None
     else:
-        tir = Spectra
+        mir = read_tsg_bip_pair(mir_pair[0], mir_pair[1], "mir")
 
-    if file_pairs.valid_mir():
-        mir = read_tsg_bip_pair(file_pairs.mir_tsg, file_pairs.mir_bip, "mir")
-    else:
-        mir = Spectra
-
-    if file_pairs.valid_lidar():
-        lidar = read_hires_dat(file_pairs.lidar)
-    else:
+    lidar_file = file_pairs._get_lidar()
+    if lidar_file is None:
         lidar = None
-    if file_pairs.valid_cras() and read_cras_file:
-        if extract_cras:
-            if imageoutput is None:
-                imageoutput = foldername.joinpath("IMG")
-
-            if isinstance(imageoutput, str):
-                imageoutput = Path(imageoutput)
-            # check if the file exists
-            if not imageoutput.exists():
-                imageoutput.mkdir()
-
-            extract_chips(file_pairs.cras, imageoutput, nir)
-            cras = Cras
-        cras = read_cras(file_pairs.cras, backing_file)
     else:
-        cras = Cras
+        lidar = read_hires_dat(lidar_file)
+
+    cras: Optional[Cras] = None
+    cras_file = file_pairs._get_cras()
+    if cras_file is not None and read_cras_file:
+        if extract_cras:
+            output_folder = foldername.joinpath("IMG") if imageoutput is None else Path(imageoutput)
+            # check if the file exists
+            if not output_folder.exists():
+                output_folder.mkdir()
+
+            extract_chips(cras_file, output_folder, nir)
+        cras = read_cras(cras_file, backing_file)
 
     return TSG(nir, tir, mir, cras, lidar)
+
+
+def read_package(
+    foldername: Union[str, Path],
+    read_cras_file: bool = False,
+    extract_cras: bool = False,
+    imageoutput: Union[str, Path, None] = None,
+    backing_file: Union[Path, str, None] = None,
+) -> TSG:
+    """Compatibility wrapper for the legacy package reader."""
+    if extract_cras or imageoutput is not None or backing_file is not None:
+        return _read_tsg_package(
+            foldername,
+            read_cras_file=read_cras_file,
+            extract_cras=extract_cras,
+            imageoutput=imageoutput,
+            backing_file=backing_file,
+        )
+
+    from pytsg import read_tsg
+
+    return read_tsg(foldername, include_cras=read_cras_file)
 
 
 if __name__ == "main":
     foldername = "data/RC_hyperspectral_geochem"
     results = read_package(foldername)
-    pd.DataFrame(results.cras.section)
+    if results.cras is not None:
+        pd.DataFrame(results.cras.section)
