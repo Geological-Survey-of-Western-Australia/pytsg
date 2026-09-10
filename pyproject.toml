@@ -61,6 +61,7 @@ dev = [
     "ty>=0.0.78",
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
+    "pyarrow>=25.0.1",
 ]
 
 [tool.ruff]
