@@ -1,25 +1,71 @@
+[build-system]
+requires = ["uv_build>=0.12.9,<0.13.0"]
+build-backend = "uv_build"
+
 [project]
 name = "pytsg"
 version = "0.5.0"
 description = "Library to read .tsg file package"
 license = "MIT"
 readme = "README.md"
-dependencies = ["numpy>1.23",'pandas>1.4.3',"simplejpeg>1.6.5","scipy>1.11.4",'dhcomp']
-
-[author]
-author='Ben Chi'
-url='https://github.com/FractalGeoAnalytics/pytsg'
-author_email='ben@fractalgeoanalytics.com'
-
+dependencies = [
+    "numpy>=2.3.0",
+    "pandas>=2.3.0",
+    "simplejpeg>=1.9.0",
+    "scipy>=1.16.0",
+    'dhcomp',
+]
+keywords = [
+    "tsg",
+    "hyperspectral",
+    "drillcore",
+    "mineralogy",
+    "data",
+    "HyLogger",
+    "spectroscopy",
+]
+requires-python = ">= 3.12"
+authors = [
+    { name = "Ben Chi", email = "ben@fractalgeoanalytics.com" },
+    { name = "Geoscience Data Integrations Team - GSWA", email = "gdi.contact@dmpe.wa.gov.au" },
+]
+classifiers = [
+    'Development Status :: 5 - Production/Stable',
+    'Intended Audience :: Science/Research',
+    'Intended Audience :: Developers',
+    'Programming Language :: Python',
+    'Programming Language :: Python :: 3',
+    'Topic :: Software Development',
+    'Topic :: Scientific/Engineering',
+    'Operating System :: OS Independent',
+]
 
 [project.optional-dependencies]
-dev = ["black", "Sphinx>5.1.1","sphinx-rtd-theme>1.0.0","sphinx-gallery>0.11.0","myst-parser>0.18.0","sphinx-autodoc-typehints>1.19.1","matplotlib>3.5.2"]
 bigfile = ["zarr>2.16.1"]
 
-[build-system]
-requires = ['setuptools']
-build-backend = 'setuptools.build_meta'
+[project.urls]
+Repository = "https://github.com/Geological-Survey-of-Western-Australia/pytsg"
+"Bug Tracker" = "https://github.com/Geological-Survey-of-Western-Australia/pytsg/issues"
 
-[tox]
-isolated_build = true
+[dependency-groups]
+dev = [
+    "black",
+    "Sphinx>=9.0.0",
+    "sphinx-rtd-theme>=3.1.0",
+    "sphinx-gallery>=0.21.0",
+    "myst-parser>=5.1.0",
+    "sphinx-autodoc-typehints>=3.13.4",
+    "matplotlib>=3.11.1",
+    "sphinx-autobuild>=2025.8.25",
+    "ruff>=0.16.6",
+    "ty>=0.0.78",
+]
 
+[tool.ruff]
+line-length = 110
+
+[tool.ruff.lint]
+select = ["B", "E", "F", "Q", "W", "I"]
+
+[tool.ruff.lint.flake8-quotes]
+inline-quotes = "double"

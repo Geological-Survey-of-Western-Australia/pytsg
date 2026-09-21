@@ -41,18 +41,15 @@ plt.show()
 If you would prefer to have full control over importing individual files the following syntax is what you need
 
 ```python
-
 # bip files
-nir = parse_tsg.read_tsg_bip_pair('ETG0187_tsg.tsg','ETG0187_tsg.bip','nir')
-tir = parse_tsg.read_tsg_bip_pair('ETG0187_tsg_tir.tsg','ETG0187_tsg_tir.bip','tir')
+nir = parse_tsg.read_tsg_bip_pair("ETG0187_tsg.tsg", "ETG0187_tsg.bip", "nir")
+tir = parse_tsg.read_tsg_bip_pair("ETG0187_tsg_tir.tsg", "ETG0187_tsg_tir.bip", "tir")
 
 # cras file
-cras = parse_tsg.read_cras('ETG0187_tsg_cras.bip')
+cras = parse_tsg.read_cras("ETG0187_tsg_cras.bip")
 
 # hires dat file
-lidar = parse_tsg.read_lidar('ETG0187_tsg_hires.dat')
-
-
+lidar = parse_tsg.read_lidar("ETG0187_tsg_hires.dat")
 ```
 For convienience 
 ## Thanks
