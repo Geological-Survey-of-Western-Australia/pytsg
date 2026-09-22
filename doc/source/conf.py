@@ -35,7 +35,13 @@ extensions = [
     "sphinx_autodoc_typehints",
     "myst_parser",  # for parsing md files
     "sphinx.ext.autosectionlabel",  # enables links to sections
+    "sphinx_llm.txt", # Generate llms.txt and .md for LLMs and agents to consume
 ]
+
+# Suppress Markdown-builder warnings for all unknown node types (True)
+# or for an exact, case-sensitive sequence of node class names such
+# as ["caption", "desc_inline"].
+llms_txt_suppress_unknown_node_warnings = True
 
 autosectionlabel_prefix_document = True
 

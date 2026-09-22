@@ -442,7 +442,7 @@ def generate_chips(
 
     Note:
     * The :class:`Spectra` is used to calculate the correct image size that matches
-        the spectra.
+      the spectra.
     * The last batch is not guaranteed to be the target size
 
     Args:

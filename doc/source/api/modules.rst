@@ -33,7 +33,7 @@ More advanced functions for working with TSG datasets.
    :members:
 
 :mod:`pytsg.readers.lidar`
-~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. automodule:: pytsg.readers.lidar
    :members:
