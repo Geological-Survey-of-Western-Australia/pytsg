@@ -1,4 +1,4 @@
-"""Readers for the individual components of a TSG package"""
+"""Readers for the individual components of a TSG package."""
 
 from .cras import read_cras
 from .lidar import read_lidar

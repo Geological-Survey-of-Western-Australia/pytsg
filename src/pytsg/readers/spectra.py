@@ -327,6 +327,8 @@ def read_spectra(
         Spectra: A Spectra object containing the raw spectra, scalars, and metadata
 
     Example:
+        >>> # Load the thermal infrared spectra
+        >>> from pytsg import read_spectra
         >>> tir = read_spectra(
         >>>     "DDH1_tsg_tir.tsg",
         >>>     "DDH1_tsg_tir.bip",

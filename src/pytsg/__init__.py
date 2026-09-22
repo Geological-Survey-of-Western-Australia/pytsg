@@ -1,9 +1,4 @@
-"""
-pytsg
-=====
-
-Library for reading .tsg file packages
-"""
+"""pytsg is a library for reading .tsg file packages."""
 
 from importlib.metadata import PackageNotFoundError, version
 
@@ -18,11 +13,11 @@ from .models import TSG, Cras, Spectra
 
 __all__ = [
     "__version__",
-    "Cras",
-    "Spectra",
     "TSG",
+    "Spectra",
+    "Cras",
+    "read_tsg",
     "read_cras",
     "read_lidar",
     "read_spectra",
-    "read_tsg",
 ]

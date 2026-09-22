@@ -26,6 +26,7 @@ def read_lidar(path: Union[str, Path], *, per_spectra: bool = True) -> NDArray:
 
     Example:
         >>> # Get LiDAR values per sample
+        >>> from pytsg import read_lidar
         >>> profile = read_lidar("ETG0187_tsg_hires.dat")
         >>>
         >>> # Get the full resolution profile
