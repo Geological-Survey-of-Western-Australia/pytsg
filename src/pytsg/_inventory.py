@@ -108,10 +108,20 @@ def _classify_file(name: str) -> Optional[str]:
 
 
 def discover_package(path: Union[str, Path]) -> FilePairs:
-    """Discover and validate supported files in a TSG package directory.
+    """
+    Discover and validate supported files in a TSG package directory.
 
     Discovery is deterministic and does not open or decode any data files. The returned
     :class:`FilePairs` contains only supported package components.
+
+    Args:
+        path (Union[str, Path]): Path to TSG dataset.
+
+    Raises:
+        FileNotFoundError: when `path` does not exist.
+
+    Returns:
+        FilePairs: TSG component files discovered
     """
     folder = Path(path)
     if not folder.exists():
