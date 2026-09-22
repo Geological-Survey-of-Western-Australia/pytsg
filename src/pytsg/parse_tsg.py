@@ -73,7 +73,12 @@ def read_tsg_bip_pair(
     bip_file: Union[Path, str],
     spectrum: str,
 ) -> Spectra:
-    """Compatibility wrapper for the historical spectral reader name."""
+    """
+    Compatibility wrapper for the historical spectral reader name.
+
+    .. deprecated:: 0.6.0
+       Use :func:`pytsg.read_spectra` instead.
+    """
     return _spectra.read_spectra(tsg_file, bip_file, spectrum_name=spectrum)
 
 
@@ -84,10 +89,11 @@ def read_package(
     imageoutput: Union[str, Path, None] = None,
     backing_file: Union[Path, str, None] = None,
 ) -> TSG:
-    """Compatibility wrapper for the legacy package reader.
+    """
+    Read a TSG dataset.
 
-    Ordinary package reads delegate to :func:`pytsg.read_tsg`. The historical
-    advanced CRAS options continue through the focused package implementation.
+    .. deprecated:: 0.6.0
+       Use :func:`pytsg.read_tsg` instead.
     """
     if extract_cras or imageoutput is not None or backing_file is not None:
         return _read_tsg_package(
