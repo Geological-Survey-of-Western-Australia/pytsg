@@ -1,4 +1,4 @@
-"""Readers and chip operations for TSG CRAS rasters"""
+"""Readers and chip operations for TSG CRAS rasters."""
 
 import struct
 from pathlib import Path
@@ -34,6 +34,14 @@ def read_cras(filename: Union[str, Path], backing_file: Union[str, Path, None] =
 
     Returns:
         Cras: imagery data
+
+    Example:
+        >>> # Load the imagery (CRAS) of the drill core
+        >>> from pytsg import read_cras
+        >>> imagery = read_cras("ETG0187_tsg_cras.bip")
+        >>>
+        >>> # Use a .zarr to load extra large imagery
+        >>> imagery = read_cras("ETG0187_tsg_cras.bip", backing_file="imagery.zarr")
     """
     section_info_format: str = "4f3i"
     tray_info_format: str = "3f2i"
@@ -155,12 +163,11 @@ def read_cras(filename: Union[str, Path], backing_file: Union[str, Path, None] =
 
 def composite_spectra(spectra: Spectra, length: int = 4) -> Spectra:
     """
-    Composites the spectra to a target interval length in mm
-    using dhcomp's greedy_composite internally.
+    Composites the spectra to a target interval length in mm using dhcomp's greedy_composite.
 
     The process keeps all the information pertaining to depth registration
     but looses all the other parameters in the scalars so there is none of
-    the extra information that tsg normally provides
+    the extra information that tsg normally provides.
 
     Args:
         spectra (Spectra): Spectral data to composite
@@ -225,6 +232,16 @@ def extract_chips(
     spectra: Spectra,
     centre_cut: bool = True,
 ):
+    """
+    Exports all imagery to a directory as JPEGs.
+
+    Args:
+        filename (Union[str, Path]): path to the _cras.bip file.
+        outfolder (Union[str, Path]): path to export directory
+        spectra (Spectra): the loaded :class:`Spectra` object for the dataset.
+        centre_cut (bool, optional): cut the image square where y i.e. depth is equal to scan width.
+            Defaults to True.
+    """
     if isinstance(outfolder, str):
         outfolder = Path(outfolder)
 
@@ -419,10 +436,25 @@ def generate_chips(
     batch_size: int = 256,
 ) -> Iterator[tuple[NDArray[np.uint8], ...]]:
     """
-    creates an generator that generates the image tiles the last batch is not guaranteed to be the target size
-    avoids having to write to folder, useful for processing files without having to first write to disk.
-    """
+    Create a generator that returns batches of image tiles.
 
+    This function is useful for processing files without having to first write to disk.
+
+    Note:
+    * The :class:`Spectra` is used to calculate the correct image size that matches
+        the spectra.
+    * The last batch is not guaranteed to be the target size
+
+    Args:
+        filename (Union[str, Path]): path to the _cras.bip file.
+        spectra (Spectra): the loaded :class:`Spectra` object for the dataset.
+        centre_cut (bool, optional): cut the image square where y i.e. depth is equal to scan width.
+            Defaults to True.
+        batch_size (int, optional): number of images per batch. Defaults to 256.
+
+    Yields:
+        Iterator[tuple[NDArray[np.uint8], ...]]: a batch of images as NDArrays
+    """
     section_info_format: str = "4f3i"
     tray_info_format: str = "3f2i"
     head_format: str = "20s2I8h4I2h"
