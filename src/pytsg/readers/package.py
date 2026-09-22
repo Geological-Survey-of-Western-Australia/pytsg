@@ -17,11 +17,26 @@ def _read_tsg_package(
     imageoutput: Union[str, Path, None] = None,
     backing_file: Union[Path, str, None] = None,
 ) -> TSG:
-    """Read all supported components in a TSG package.
+    """
+    Read all supported components in a TSG package.
 
     This is the internal package-assembly implementation. The public facade exposes
     the smaller ``read_tsg(path, *, include_cras=False)`` API, while the legacy
     compatibility facade may continue to pass the advanced CRAS options here.
+
+    Args:
+        foldername (Union[str, Path]): Path to folder containing the TSG dataset
+        read_cras_file (bool, optional): Load raster imagery (can be large!). Defaults to False.
+        extract_cras (bool, optional): Extract imagery to .jpg files on load. Defaults to False.
+        imageoutput (Union[str, Path, None], optional): location to extract cras to. Defaults to None.
+        backing_file (Union[Path, str, None], optional): path to store cras as .zarr if data
+            is too large. Defaults to None.
+
+    Raises:
+        ValueError: when NIR .tsg and .bip files are missing.
+
+    Returns:
+        TSG: A :class:`TSG` object which contains the spectra/scalars/imagery from the TSG dataset
     """
     folder = Path(foldername)
     file_pairs = discover_package(folder)
