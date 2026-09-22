@@ -12,7 +12,15 @@ from ..models import BandHeaders, ClassHeaders, Spectra
 
 
 def _read_tsg_file(filename: Union[str, Path]) -> list[str]:
-    """Read a TSG metadata file and strip line endings."""
+    """
+    Return contents of a TSG metadata file and strip line endings.
+
+    Args:
+        filename (Union[str, Path]): .tsg file to read
+
+    Returns:
+        list[str]: contents of file as a list of strings
+    """
     lines: list[str] = []
     with open(filename, encoding="cp1252") as file:
         for line in file:
@@ -21,7 +29,15 @@ def _read_tsg_file(filename: Union[str, Path]) -> list[str]:
 
 
 def _find_header_sections(tsg_str: list[str]) -> dict[str, tuple[int, int]]:
-    """Find the sections in a TSG metadata file."""
+    """
+    Find the sections in a TSG metadata file.
+
+    Args:
+        tsg_str (list[str]): TSG metadata file as list of strings
+
+    Returns:
+        dict[str, tuple[int, int]]: start/end line indexes for each section
+    """
     re_strip: re.Pattern[str] = re.compile(r"^\[[a-zA-Z0-9 ]+\]")
     positions: list[int] = []
     for i, line in enumerate(tsg_str):
@@ -38,7 +54,16 @@ def _find_header_sections(tsg_str: list[str]) -> dict[str, tuple[int, int]]:
 
 
 def _parse_kvp(line: str, split: str = "=") -> dict[str, str]:
-    """Parse one separator-delimited line into a key/value dictionary."""
+    """
+    Parse one separator-delimited line into a key/value dictionary.
+
+    Args:
+        line (str): single line to parse
+        split (str, optional): separator. Defaults to "=".
+
+    Returns:
+        dict[str, str]: `{key: value}` with any trailing whitespace removed
+    """
     if line.find(split) >= 0:
         split_line = line.split(split)
         key = split_line[0].strip()
@@ -48,12 +73,30 @@ def _parse_kvp(line: str, split: str = "=") -> dict[str, str]:
 
 
 def _parse_section(section_list: list[str], key_split: str = ":") -> list[dict[str, str]]:
-    """Parse the generic key/value lines in a TSG section."""
+    """
+    Parse the generic key/value lines in a TSG section.
+
+    Args:
+        section_list (list[str]): lines from TSG metadata file
+        key_split (str, optional): separator between index and kv pairs. Defaults to ":".
+
+    Returns:
+        list[dict[str, str]]: key value pairs of metadata
+    """
     return [_parse_kvp(line, key_split) for line in section_list]
 
 
 def _parse_sample_header(section_list: list[str], key_split: str = ":") -> list[dict[str, str]]:
-    """Parse sample-header records from a TSG metadata section."""
+    """
+    Parse ``[sample headers]`` records from a TSG metadata section.
+
+    Args:
+        section_list (list[str]): sample header definition lines from TSG metadata file
+        key_split (str, optional): separator between sample index and header info. Defaults to ":".
+
+    Returns:
+        list[dict[str, str]]: key value pairs of metadata associated with each sample
+    """
     final: list[dict[str, str]] = []
     for line in section_list:
         key_values = _parse_kvp(line, key_split)
@@ -68,7 +111,18 @@ def _parse_sample_header(section_list: list[str], key_split: str = ":") -> list[
 
 
 def _parse_class_section(section_list: list[str], classnumber: int) -> ClassHeaders:
-    """Parse one class definition section."""
+    """
+    Parse one class definition section.
+
+    The :class:`ClassHeaders` are used to describe the classes referenced in a scalar.
+
+    Args:
+        section_list (list[str]): lines from TSG metadata file containing class definition
+        classnumber (int): class number from the section. e.g. 3 from "[Class 3]"
+
+    Returns:
+        ClassHeaders: Class definition referenced in :class:`BandHeaders` by class number
+    """
     class_names: dict[str, str] = {}
     class_info: dict[int, str] = {}
     for line in section_list:
@@ -88,7 +142,15 @@ def _parse_class_section(section_list: list[str], classnumber: int) -> ClassHead
 
 
 def _parse_wavelength_specs(line: str) -> dict[str, Union[float, str]]:
-    """Parse a TSG wavelength range line."""
+    """
+    Parse wavelength range from a TSG ``"[wavelength specs]"`` line.
+
+    Args:
+        line (str): ``"[wavelength specs]"`` line from TSG metadata.
+
+    Returns:
+        dict[str, Union[float, str]]: _description_
+    """
     split_wavelength = line.split()
     return {
         "start": float(split_wavelength[0]),
@@ -98,7 +160,17 @@ def _parse_wavelength_specs(line: str) -> dict[str, Union[float, str]]:
 
 
 def _read_bip(filename: Union[str, Path], coordinates: dict[str, str]) -> NDArray[np.float32]:
-    """Read and reshape the two-plane TSG BIP array."""
+    """
+    Read and reshape the two-plane TSG BIP array.
+
+    Args:
+        filename (Union[str, Path]): Path to .bip file.
+        coordinates (dict[str, str]): TSG coordinate metadata containing
+              ``"lastband"``, and ``"lastsample"``.
+
+    Returns:
+        NDArray[np.float32]: _description_
+    """
     tmp_array: NDArray[np.float32] = np.fromfile(filename, dtype=np.float32)
     n_bands = int(coordinates["lastband"])
     n_samples = int(coordinates["lastsample"])
@@ -106,14 +178,38 @@ def _read_bip(filename: Union[str, Path], coordinates: dict[str, str]) -> NDArra
 
 
 def _calculate_wavelengths(wavelength_specs: dict[str, float], coordinates: dict[str, str]) -> NDArray:
-    """Calculate evenly spaced wavelengths from TSG metadata."""
+    """
+    Calculate evenly spaced wavelengths for the spectral bands from TSG metadata.
+
+    Args:
+        wavelength_specs (dict[str, float]): Wavelength metadata containing
+              numeric ``"start"`` and ``"end"`` values.
+        coordinates (dict[str, str]): TSG coordinate metadata containing
+              ``"lastband"``, the total number of spectral bands represented
+              as a string.
+
+    Returns:
+        NDArray: One-dimensional NumPy array containing evenly spaced
+              wavelength values from ``start`` to ``end``, inclusive, with
+              one value for each spectral band.
+    """
     wavelength_range = wavelength_specs["end"] - wavelength_specs["start"]
     resolution = wavelength_range / (int(coordinates["lastband"]) - 1)
     return np.arange(wavelength_specs["start"], wavelength_specs["end"] + resolution, resolution)
 
 
 def _parse_bandheaders(bandheaders: list[str]) -> list[BandHeaders]:
-    """Parse scalar band header records."""
+    """
+    Parse scalar band-header records from a TSG metadata section.
+
+    Args:
+        bandheaders (list[str]): Raw lines from the ``[band headers]``
+              section of a TSG metadata file.
+
+    Returns:
+        list[BandHeaders]: One parsed :class:`BandHeaders` object per input
+              record, in the same order as the input.
+    """
     output: list[BandHeaders] = []
     for band_header in bandheaders:
         split_header = band_header.split(":")
@@ -126,6 +222,7 @@ def _parse_bandheaders(bandheaders: list[str]) -> list[BandHeaders]:
             if flag <= 2:
                 class_name: Union[int, str, float] = int(split_info[4])
             elif flag == 13:
+                # flag 13 is when PLS scalars are used
                 class_name = split_info[4]
             else:
                 class_name = float(split_info[4])
@@ -137,7 +234,20 @@ def _parse_bandheaders(bandheaders: list[str]) -> list[BandHeaders]:
 
 
 def _parse_tsg(fstr: list[str], headers: dict[str, tuple[int, int]]) -> dict[str, Any]:
-    """Parse all supported sections from a TSG metadata file."""
+    """
+    Parse all supported sections from a TSG metadata file.
+
+    Args:
+        fstr (list[str]): Lines from a TSG metadata file, normally read by
+              :func:`_read_tsg_file` with line endings removed.
+        headers (dict[str, tuple[int, int]]): Mapping of section names to
+              ``(start, end)`` slice bounds into ``fstr``. This is normally
+              produced by :func:`_find_header_sections`; ``start`` is inclusive
+              and ``end`` is the exclusive bound used to slice ``fstr``.
+
+    Returns:
+        dict[str, Any]: Parsed metadata keyed by section name.
+    """
     d_info: dict[str, Any] = {}
     for key in headers:
         start, end = headers[key]
@@ -168,7 +278,18 @@ def _parse_scalars(
     bandheaders: list[BandHeaders],
     nodata: int = -1,
 ) -> pd.DataFrame:
-    """Map scalar bands to a named Pandas DataFrame."""
+    """
+    Map scalar bands to a named pandas DataFrame.
+
+    Args:
+        scalars (NDArray): scalar data
+        classes (dict[int, ClassHeaders]): Class definitions (e.g. TSA mineral names)
+        bandheaders (list[BandHeaders]): Metadata associated with each scalar column.
+        nodata (int, optional): Replace missing data with this value. Defaults to -1.
+
+    Returns:
+        pd.DataFrame: dataframe with band header names mapped to column names
+    """
     tmp_series: list[pd.DataFrame] = []
     for band_header in bandheaders:
         band_value = scalars[:, band_header.band]
@@ -176,7 +297,7 @@ def _parse_scalars(
             if isinstance(band_header.class_number, int) and band_header.class_number > 0:
                 bv = np.where(
                     np.isclose(band_value, np.finfo("float32").min),
-                    -1,
+                    nodata,
                     band_value,
                 ).astype(int)
                 mapped = classes[band_header.class_number].map_ints(bv)
@@ -195,7 +316,7 @@ def read_spectra(
     spectrum_name: str = "nir",
 ) -> Spectra:
     """
-    Returns the spectra and scalar data contained in a .tsg/.bip file pair.
+    Return the spectra and scalar data contained in a .tsg/.bip file pair.
 
     Args:
         tsg_file (Union[Path, str]): path to .tsg file
@@ -211,6 +332,7 @@ def read_spectra(
         >>>     "DDH1_tsg_tir.bip",
         >>>     spectrum_name="tir",
         >>> )
+
     """
     fstr = _read_tsg_file(tsg_file)
     headers = _find_header_sections(fstr)
