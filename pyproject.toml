@@ -68,10 +68,23 @@ dev = [
 line-length = 110
 
 [tool.ruff.lint]
-select = ["B", "E", "F", "Q", "W", "I"]
+preview = true
+explicit-preview-rules = true
+select = ["B", "D", "DOC202", "DOC102", "DOC201", "E", "F", "Q", "W", "I"]
+ignore = ["D203", "D212"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+ignore-var-parameters = true
 
 [tool.ruff.lint.flake8-quotes]
 inline-quotes = "double"
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/*" = ["B", "D", "DOC202", "DOC102", "DOC201"]
+"**/examples/*" = ["B", "D", "DOC202", "DOC102", "DOC201"]
+"**/doc/source/conf.py" = ["B", "D", "DOC202", "DOC102", "DOC201"]
+"**/src/pytsg/parse_tsg.py" = ["DOC202", "DOC102", "DOC201"]
 
 [tool.coverage.run]
 omit = [
