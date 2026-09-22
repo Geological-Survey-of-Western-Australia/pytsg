@@ -51,7 +51,7 @@ def band_extractor(
 
     Returns:
         NDArray: 2d array of band statistics rows represent the spectra, columns represent the parameters,
-            results are returned in channel space.
+        results are returned in channel space.
     """
     if spectra.ndim != 2:
         raise ValueError("spectra must be a 2d array")
@@ -155,7 +155,7 @@ def fit_gaussian(
 
     Returns:
         NDArray[np.float64]: a 2d array of the parameters of the gaussian fit amplitude, centre, width. Rows
-            represent the spectra. Results are returned in wavelength units.
+        represent the spectra. Results are returned in wavelength units.
     """
     if spectra.ndim != 2:
         raise ValueError("spectra must be a 2d array")
