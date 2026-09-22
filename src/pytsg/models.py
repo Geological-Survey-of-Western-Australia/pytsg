@@ -1,4 +1,4 @@
-"""Data models used by the public and focused TSG readers."""
+"""Data models used by :mod:`pytsg`."""
 
 from dataclasses import dataclass
 from typing import Any, NamedTuple, Optional, Union
@@ -12,13 +12,29 @@ NDArrayOrZarrArray = NDArray | Any
 
 
 class ClassHeaders(NamedTuple):
+    """Class definition."""
+
     class_number: int
+    """Class number from the section. e.g. 3 from "[Class 3]"""
     name: str
+    """Class name"""
     max: int
+    """Number of classes"""
     classes: dict[int, str]
+    """Mapping of class ids to class labels"""
     colors: list
+    """Colours associated with each class as BGR colour integers"""
 
     def map_ints(self, index: NDArray) -> list[str]:
+        """
+        Returns the corresponding classes based on the class id.
+
+        Args:
+            index (NDArray): array of class ids
+
+        Returns:
+            list[str]: List of corresponding class labels
+        """
         outindex: list[str] = []
         for i in index:
             if i >= 0:
@@ -29,6 +45,8 @@ class ClassHeaders(NamedTuple):
 
 
 class CrasHeader(NamedTuple):
+    """CRAS imagery metadata."""
+
     id: str
     """starts with 'CoreLog Linescan'"""
     ns: int
@@ -66,6 +84,8 @@ class CrasHeader(NamedTuple):
 
 
 class TrayInfo(NamedTuple):
+    """Linescan Tray Metadata."""
+
     utlengthmm: float
     """untrimmed length of tray imagery in mm"""
     baseheightmm: float
@@ -79,6 +99,8 @@ class TrayInfo(NamedTuple):
 
 
 class SectionInfo(NamedTuple):
+    """Linescan Section metadata."""
+
     utlengthmm: float
     """untrimmed length of imagery in mm"""
     startmm: float
@@ -96,7 +118,7 @@ class SectionInfo(NamedTuple):
 
 
 class BandHeaders(NamedTuple):
-    """Metadata associated with each scalar column. e.g. associated classes"""
+    """Metadata associated with each scalar column. e.g. associated classes."""
 
     band: int
     """Index of the band"""
@@ -105,6 +127,15 @@ class BandHeaders(NamedTuple):
     class_number: Union[int, str, float]
     """id of the classes used in this scalar column"""
     flag: int
+    """
+    Scalar Type:
+
+    * **2:** Imported or user-class scalar
+    * **8:** Batch scalar
+    * **9:** Core Logging Scalar
+    * **10:** AuxMatch Scalar
+    * **13:** PLS prediction scalar
+    """
 
 
 @dataclass
@@ -114,14 +145,14 @@ class Cras:
     image: NDArrayOrZarrArray
     """Typically an ``np.ndarray`` or a ``zarr.Array`` with a backing file."""
     tray: list[TrayInfo]
-    """Tray metadata"""
+    """Linescan tray metadata"""
     section: list[SectionInfo]
-    """Tray section metadata"""
+    """Linescan section metadata"""
 
 
 @dataclass
 class Spectra:
-    """The raw spectra, bandheaders, and scalar data for a given spectral range"""
+    """The raw spectra, bandheaders, and scalar data for a given spectral range."""
 
     spectrum_name: str
     """Name of the spectral range (e.g. NIR)"""
@@ -141,7 +172,7 @@ class Spectra:
 
 @dataclass
 class TSG:
-    """A collection of all the data in a TSG dataset"""
+    """A collection of all the data in a TSG dataset."""
 
     nir: Spectra
     """Near-infrared spectra and scalar data"""
@@ -186,6 +217,12 @@ class TSG:
         return f"{name}: {type(component).__name__}"
 
     def __repr__(self) -> str:
+        """
+        Return string representation of the TSG object.
+
+        Returns:
+            str: Representation of TSG object
+        """
         lines = ["TSG(", f"  available={self.available!r},"]
         for name in ("nir", "tir", "mir", "cras", "lidar"):
             lines.append(f"  {self._component_summary(name, getattr(self, name))},")
