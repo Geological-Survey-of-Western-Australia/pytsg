@@ -24,6 +24,7 @@ Thanks to CSIRO and in particular Dr Andrew Rodger for assistance in decoding th
    auto_examples/index
    api/modules
    glossary/glossary
+   citation/citation
 
 .. toctree::
    :maxdepth: 2
