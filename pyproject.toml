@@ -65,6 +65,12 @@ dev = [
     "sphinx-llm>=1.1.0",
 ]
 
+[tool.uv]
+# sphinx-llm includes the README.md in llms.txt from the locally installed
+# version of pytsg. Include it as a cache key to invalidate the build when
+# it changes or you won't be able to pick up new changes when testing locally.
+cache-keys = [{ file = "pyproject.toml" }, { file = "README.md" }]
+
 [tool.ruff]
 line-length = 110
 

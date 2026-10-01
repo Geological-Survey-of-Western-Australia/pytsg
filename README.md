@@ -1,57 +1,67 @@
-# pytsg
-## Rationale
-The spectral geologist (TSG) is an industry standard software for hyperspectral data analysis
-https://research.csiro.au/thespectralgeologist/
+[![PyPI](https://img.shields.io/pypi/v/pytsg.svg?style=flat)](https://pypi.python.org/pypi/pytsg)
+[![pytsg downloads](https://img.shields.io/pypi/dm/pytsg.svg?style=flat)](https://pypistats.org/packages/pytsg)
 
-pytsg is an open source one function utility that imports the spectral geologist file package into a simple object.
+# pytsg
+
+**pytsg** is a lightweight, open-source utility that provides a simple way to load and access TSG file packages from Python. With a single function call, a TSG package can be imported into an easy-to-use Python object for further analysis and processing.
+
+[The Spectral Geologist (TSG)](https://research.csiro.au/thespectralgeologist/) is an industry-standard application for hyperspectral data analysis developed by CSIRO.
 
 ## Installation
-Installation is via pip
-```pip install pytsg```
+
+```
+pip install pytsg
+
+# To use zarr when loading large imagery/cras files
+pip install pytsg[bigfile]
+```
 
 ## Usage
 
-If using the top level importer the data is assumed to follow this structure
+The TSG dataset will typically have the following file structure:
 ```
-\HOLENAME
-         \HOLEMAME_tsg.bip
-         \HOLENAME_tsg.tsg
-         \HOLENAME_tsg_tir.bip
-         \HOLENAME_tsg_tir.tsg
-         \HOLENAME_tsg_hires.dat
-         \HOLENAME_tsg_cras.bip
-
+HOLENAME/
+├── HOLENAME_tsg.bip
+├── HOLENAME_tsg.tsg
+├── HOLENAME_tsg_cras.bip
+├── HOLENAME_tsg_hires.dat
+├── HOLENAME_tsg_mir.bip
+├── HOLENAME_tsg_mir.tsg
+├── HOLENAME_tsg_tir.bip
+└── HOLENAME_tsg_tir.tsg
 ```
 
+You can load the TSG dataset using `read_tsg` and then interact with the data:
 ```python
 from matplotlib import pyplot as plt
-from pytsg import parse_tsg
+import pytsg
 
-data = parse_tsg.read_package('example_data/ETG0187')
+data = pytsg.read_tsg("example_data/PE257D")
 
-plt.plot(data.nir.wavelength, data.nir.spectra[0, 0:10, :].T)
-plt.plot(data.tir.wavelength, data.tir.spectra[0, 0:10, :].T)
-plt.xlabel('Wavelength nm')
-plt.ylabel('Reflectance')
-plt.title('pytsg reads tsg files')
+plt.plot(data.nir.wavelength, data.nir.spectra[0:10, :].T)
+plt.plot(data.tir.wavelength, data.tir.spectra[0:10, :].T)
+plt.xlabel("Wavelength nm")
+plt.ylabel("Reflectance")
+plt.title("pytsg reads tsg files")
 plt.show()
-
 ```
 
-If you would prefer to have full control over importing individual files the following syntax is what you need
+If you would prefer to load just the individual files you can do that also:
 
 ```python
-# bip files
-nir = parse_tsg.read_tsg_bip_pair("ETG0187_tsg.tsg", "ETG0187_tsg.bip", "nir")
-tir = parse_tsg.read_tsg_bip_pair("ETG0187_tsg_tir.tsg", "ETG0187_tsg_tir.bip", "tir")
+# read bip files containing the spectra
+import pytsg
 
-# cras file
-cras = parse_tsg.read_cras("ETG0187_tsg_cras.bip")
+nir = pytsg.read_spectra("ETG0187_tsg.tsg", "ETG0187_tsg.bip", "nir")
+tir = pytsg.read_spectra("ETG0187_tsg_tir.tsg", "ETG0187_tsg_tir.bip", "tir")
 
-# hires dat file
-lidar = parse_tsg.read_lidar("ETG0187_tsg_hires.dat")
+# read cras files containing the imagery
+cras = pytsg.read_cras("ETG0187_tsg_cras.bip")
+
+# read hires dat file containing the LiDAR/profilometer data
+lidar = pytsg.read_lidar("ETG0187_tsg_hires.dat")
 ```
-For convienience 
+
 ## Thanks
 Thanks to CSIRO and in particular Andrew Rodger for his assistance in decoding the file structures.
 
