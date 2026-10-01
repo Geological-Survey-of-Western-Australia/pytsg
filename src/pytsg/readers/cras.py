@@ -441,8 +441,7 @@ def generate_chips(
     This function is useful for processing files without having to first write to disk.
 
     Note:
-    * The :class:`Spectra` is used to calculate the correct image size that matches
-      the spectra.
+    * The :class:`Spectra` is used to calculate the correct image size that matches the spectra.
     * The last batch is not guaranteed to be the target size
 
     Args:
