@@ -184,9 +184,11 @@ def chull(xy: NDArray) -> NDArray:
         NDArray: the convex hull of the spectra
     """
     vertices: NDArray = ConvexHull(xy).vertices
-    # cross product to check if the points are above or below the line if they are below the line
-    # the we will remove them
-    good_points: NDArray = np.cross(xy[vertices] - xy[0], xy[vertices] - xy[-1]) >= 0
+    # cross product to check if the points are above or below the line; calculate the 2-D
+    # cross product explicitly because NumPy 2.x no longer supports 2-D vectors in np.cross.
+    from_start = xy[vertices] - xy[0]
+    from_end = xy[vertices] - xy[-1]
+    good_points: NDArray = from_start[:, 0] * from_end[:, 1] - from_start[:, 1] * from_end[:, 0] >= 0
     good_verts: NDArray = np.sort(vertices[good_points])
     hull: NDArray = np.interp(xy[:, 0], xy[good_verts, 0], xy[good_verts, 1])
     return hull
