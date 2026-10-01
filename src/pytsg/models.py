@@ -149,6 +149,19 @@ class Cras:
     section: list[SectionInfo]
     """Linescan section metadata"""
 
+    def __repr__(self) -> str:
+        """
+        Return string representation of the Cras object.
+
+        Returns:
+            str: Representation of Cras object
+        """
+        return (
+            f"Cras(image_shape={self.image.shape}, "
+            f"image_dtype={self.image.dtype}, "
+            f"tray_count={len(self.tray)}, "
+            f"section_count={len(self.section)})"
+        )
 
 @dataclass
 class Spectra:
@@ -169,6 +182,22 @@ class Spectra:
     scalars: pd.DataFrame
     """Scalar data associated with, or derived from, the spectra"""
 
+    def __repr__(self) -> str:
+        """
+        Return string representation of the Spectra object.
+
+        Returns:
+            str: Representation of Spectra object
+        """
+        return (
+            f"Spectra("
+            f"spectrum_name={self.spectrum_name!r}, "
+            f"spectra_shape={self.spectra.shape}, "
+            f"spectra_dtype={self.spectra.dtype}, "
+            f"wavelength_shape={self.wavelength.shape}, "
+            f"sampleheaders_shape={self.sampleheaders.shape}, "
+            f"scalars_shape={self.scalars.shape})"
+        )
 
 @dataclass
 class TSG:
@@ -196,22 +225,9 @@ class TSG:
         if component is None:
             return f"{name}: absent"
         if isinstance(component, Spectra):
-            return (
-                f"{name}: Spectra("
-                f"spectra_shape={component.spectra.shape}, "
-                f"spectra_dtype={component.spectra.dtype}, "
-                f"wavelength_shape={component.wavelength.shape}, "
-                f"sampleheaders_shape={component.sampleheaders.shape}, "
-                f"scalars_shape={component.scalars.shape})"
-            )
+            return f"{name}: {component.__repr__()}"
         if isinstance(component, Cras):
-            return (
-                f"{name}: Cras("
-                f"image_shape={component.image.shape}, "
-                f"image_dtype={component.image.dtype}, "
-                f"tray_count={len(component.tray)}, "
-                f"section_count={len(component.section)})"
-            )
+            return f"{name}: {component.__repr__()}"
         if isinstance(component, np.ndarray):
             return f"{name}: ndarray(shape={component.shape}, dtype={component.dtype})"
         return f"{name}: {type(component).__name__}"
