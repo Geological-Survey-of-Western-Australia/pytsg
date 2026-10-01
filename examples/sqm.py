@@ -9,8 +9,10 @@ For this example we will look for absorbance features in the Short Wave InfraRed
 and 2380 nm as described in the original paper.
 """
 
+# sphinx_gallery_start_ignore
 import warnings
 
+# sphinx_gallery_end_ignore
 import numpy as np
 from matplotlib import pyplot as plt
 
