@@ -1,6 +1,10 @@
 pytsg
 =====
 
+.. image::
+   ./images/PE257D_3d_no_title.png
+   :align: center
+
 `pytsg` reads The Spectral Geologist (TSG) package format into a simple class, exposes the data as NumPy
 arrays and pandas DataFrames. Use the :func:`pytsg.read_tsg` function to load the complete TSG package,
 or choose one of the explicit direct readers for an individual component.
@@ -11,9 +15,6 @@ https://research.csiro.au/thespectralgeologist/
 Thanks to CSIRO and in particular Dr Andrew Rodger for assistance in decoding the file structures.
 
 
-.. image::
-   ./images/demo_image.png
-
 .. toctree::
    :maxdepth: 2
    :caption: Getting Started
@@ -21,7 +22,7 @@ Thanks to CSIRO and in particular Dr Andrew Rodger for assistance in decoding th
 
    installation/installation
    quick-start/quick-start
-   auto_examples/index
+   examples/index
    api/modules
    glossary/glossary
    citation/citation

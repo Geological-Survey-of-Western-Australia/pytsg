@@ -187,4 +187,8 @@ em.property {
   color: var(--color-sig-default); /* Default values */
 }
 
-
+/* --- Enable text wrapping in tables  ----------------------------- */
+.wy-table-responsive table td, 
+.wy-table-responsive table th {
+    white-space: normal !important;
+}

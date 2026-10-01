@@ -35,7 +35,7 @@ extensions = [
     "sphinx_autodoc_typehints",
     "myst_parser",  # for parsing md files
     "sphinx.ext.autosectionlabel",  # enables links to sections
-    "sphinx_llm.txt", # Generate llms.txt and .md for LLMs and agents to consume
+    "sphinx_llm.txt",  # Generate llms.txt and .md for LLMs and agents to consume
 ]
 
 # Suppress Markdown-builder warnings for all unknown node types (True)
@@ -51,7 +51,7 @@ sphinx_gallery_conf = {
     "filename_pattern": r"\.py",
     "ignore_pattern": r"__init__\.py",
     "examples_dirs": "../../examples",  # path to your example scripts
-    "gallery_dirs": "auto_examples",  # path to where to save gallery generated output
+    "gallery_dirs": "examples",  # path to where to save gallery generated output
     "write_computation_times": False,
 }
 

@@ -204,6 +204,7 @@ github/gitignore: A collection of useful .gitignore templates
 
 /data
 /doc/source/auto_examples/
+/doc/source/examples/
 /py
 src/pytsg/__pycache__/**
 src/pytsg/__pycache__/**

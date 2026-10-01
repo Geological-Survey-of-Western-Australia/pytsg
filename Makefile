@@ -35,6 +35,7 @@ clean:
 	@echo "Deleting release artifacts..."
 	@rm -rf ./dist
 	@echo "Deleting documentation build artifacts..."
+	@rm -rf ./doc/source/examples
 	@cd doc && make clean
 
 format:

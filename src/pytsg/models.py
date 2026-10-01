@@ -163,6 +163,7 @@ class Cras:
             f"section_count={len(self.section)})"
         )
 
+
 @dataclass
 class Spectra:
     """The raw spectra, bandheaders, and scalar data for a given spectral range."""
@@ -198,6 +199,7 @@ class Spectra:
             f"sampleheaders_shape={self.sampleheaders.shape}, "
             f"scalars_shape={self.scalars.shape})"
         )
+
 
 @dataclass
 class TSG:
