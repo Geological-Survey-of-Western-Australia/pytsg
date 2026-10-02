@@ -98,3 +98,7 @@ omit = [
     "tests/*",
     "**/test_*.py",
 ]
+
+[tool.ty.src]
+include = ["src", "tests"]
+exclude = ["examples"]
