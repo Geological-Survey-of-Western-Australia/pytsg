@@ -1,4 +1,6 @@
-from typing import Callable, Union
+"""Feature extraction functions."""
+
+from typing import Callable, Optional, Union
 
 import numpy as np
 import numpy.polynomial.polynomial as poly
@@ -9,12 +11,16 @@ from scipy.spatial import ConvexHull
 
 def gaussian(x: np.ndarray, amplitude: float, mu: float, std: float) -> NDArray:
     """
-    make a gaussian
-    parameters: x (np.ndarray) the range on which the gaussian will be evaluated
-                amplitude (float) intensity of gaussian
-                mu (float) mean
-                std (float) standard deviation
-    returns: (NDArray) gaussian evaluated on x
+    Make a gaussian.
+
+    Args:
+        x (np.ndarray): the range on which the gaussian will be evaluated
+        amplitude (float): intensity of gaussian
+        mu (float): mean
+        std (float): standard deviation
+
+    Returns:
+        NDArray: gaussian evaluated on x
     """
     g = amplitude * np.exp(-0.5 * ((x - mu) ** 2) / std**2)
     return g
@@ -24,11 +30,10 @@ def band_extractor(
     spectra: NDArray,
     start: int = 0,
     end: int = -1,
-    statistic: list[Callable] = None,
+    statistic: Optional[list[Callable[..., object]]] = None,
 ) -> NDArray:
     """
-    Function to extract band statistics from a spectra use of a list of callables.
-    i.e numpy's min, max, argmin etc.
+    Extract band statistics from a spectra use of a list of callables. i.e numpy's min, max, argmin etc.
 
     The functions will calculate the statistics for each row of spectra as passing in a N x C array of spectra
     where N is the number of spectra and C is the wavelengths.
@@ -47,8 +52,7 @@ def band_extractor(
 
     Returns:
         NDArray: 2d array of band statistics rows represent the spectra, columns represent the parameters,
-            results are returned in channel space.
-
+        results are returned in channel space.
     """
     if spectra.ndim != 2:
         raise ValueError("spectra must be a 2d array")
@@ -77,7 +81,6 @@ def sqm(
 ) -> tuple[NDArray, NDArray]:
     """
     Implementation of the simple quadratic method for extracting the feature depth and position.
-    https://doi.org/10.1016/j.rse.2011.11.025
 
     Args:
         wavelength (NDArray): wavelength of the spectra
@@ -92,8 +95,13 @@ def sqm(
 
     Returns:
         tuple[NDArray, NDArray]: a 2d array of the paramters representing  amplitude, centre, and width at the
-            zero crossing i.e. the polynomial roots each row is a represent a spectrum. A 2d NDArray
-            representing the coefficients of the 2nd degree polynomial in descending order
+        zero crossing i.e. the polynomial roots each row is a represent a spectrum. A 2d NDArray
+        representing the coefficients of the 2nd degree polynomial in descending order
+
+    References:
+        * Rodger, A., Laukamp, C., Haest, M., & Cudahy, T. (2012). A simple quadratic method of
+          absorption feature wavelength estimation in continuum removed spectra. Remote Sensing of
+          Environment, 118, 273–283. https://doi.org/10.1016/j.rse.2011.11.025
     """
     # handle the None case for the start and end of the wavelength selection
     start: int
@@ -132,9 +140,10 @@ def sqm(
 def fit_gaussian(
     wavelength: NDArray,
     spectra: NDArray,
-    x0: NDArray = None,
+    x0: Optional[NDArray] = None,
 ) -> NDArray[np.float64]:
-    """Function to optimise a gaussian fit to the spectra using least squares
+    """
+    Function to optimise a gaussian fit to the spectra using least squares.
 
     Args:
         wavelength (NDArray): wavelength of the spectra
@@ -147,9 +156,8 @@ def fit_gaussian(
 
     Returns:
         NDArray[np.float64]: a 2d array of the parameters of the gaussian fit amplitude, centre, width. Rows
-            represent the spectra. Results are returned in wavelength units.
+        represent the spectra. Results are returned in wavelength units.
     """
-
     if spectra.ndim != 2:
         raise ValueError("spectra must be a 2d array")
     nspectra: int = spectra.shape[0]
@@ -168,16 +176,20 @@ def fit_gaussian(
 
 def chull(xy: NDArray) -> NDArray:
     """
-    calculates the convex hull of a spectrum
-    parameters:
-        xy (np.ndarray): wavelength and reflectance of the spectra
-    returns: (NDArray) the convex hull of the spectra
-    """
+    Calculate the convex hull of a spectrum.
 
+    Args:
+        xy (NDArray): wavelength and reflectance of the spectra
+
+    Returns:
+        NDArray: the convex hull of the spectra
+    """
     vertices: NDArray = ConvexHull(xy).vertices
-    # cross product to check if the points are above or below the line if they are below the line
-    # the we will remove them
-    good_points: NDArray = np.cross(xy[vertices] - xy[0], xy[vertices] - xy[-1]) >= 0
+    # cross product to check if the points are above or below the line; calculate the 2-D
+    # cross product explicitly because NumPy 2.x no longer supports 2-D vectors in np.cross.
+    from_start = xy[vertices] - xy[0]
+    from_end = xy[vertices] - xy[-1]
+    good_points: NDArray = from_start[:, 0] * from_end[:, 1] - from_start[:, 1] * from_end[:, 0] >= 0
     good_verts: NDArray = np.sort(vertices[good_points])
     hull: NDArray = np.interp(xy[:, 0], xy[good_verts, 0], xy[good_verts, 1])
     return hull
