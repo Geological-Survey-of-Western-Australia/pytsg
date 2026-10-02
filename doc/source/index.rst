@@ -25,6 +25,7 @@ Thanks to CSIRO and in particular Dr Andrew Rodger for assistance in decoding th
    examples/index
    api/modules
    glossary/glossary
+   related/related
    citation/citation
 
 .. toctree::
