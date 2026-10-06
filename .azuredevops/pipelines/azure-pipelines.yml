@@ -74,3 +74,137 @@ stages:
             inputs:
               testResultsFiles: test-results.xml
               testRunTitle: pytest
+
+  # Audits the locked dependencies (uv.lock) rather than a build, so it doesn't
+  # need to wait for one; runs alongside the unit tests. Artifact: SARIF report.
+  - stage: Xray
+    displayName: 'Xray Scan'
+    dependsOn: []
+    trigger: manual
+    isSkippable: false
+    jobs:
+      - job: Audit
+        displayName: 'Audit locked dependencies'
+        steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: '3.12'
+              addToPath: true
+              architecture: 'x64'
+
+          - task: JFrogPip@1
+            displayName: 'Install uv (via JFrog)'
+            inputs:
+              artifactoryConnection: 'service-ado-jfrog-geodigital'
+              command: 'install'
+              arguments: '"uv>=0.12.9,<0.13"'
+              targetResolveRepo: 'gswa-pypi-virtual'
+
+          # --no-emit-project: audit pytsg's dependencies, not pytsg itself
+          - script: uv export --locked --all-extras --no-emit-project --format requirements-txt -o requirements-ci.txt
+            displayName: 'Export pinned requirements from uv.lock'
+
+          - script: |
+              curl -fL https://install-cli.jfrog.io | sh
+              jf config add jfrog-bot \
+                --url="$JFROG_URL" \
+                --access-token="$JFROG_ACCESS_TOKEN" \
+                --interactive=false
+            env:
+              JFROG_URL: $(jfrog_url)
+              JFROG_ACCESS_TOKEN: $(jfrog-bot-token)
+            displayName: 'Install and configure JFrog CLI'
+
+          - script: |
+              jf audit --requirements-file=requirements-ci.txt --format='json' > xray.json
+              jf audit --requirements-file=requirements-ci.txt --format='sarif' > xray.sarif
+            displayName: 'Xray Audit'
+
+          - task: PublishPipelineArtifact@1
+            condition: succeededOrFailed()
+            inputs:
+              targetPath: xray.sarif
+              artifactName: CodeAnalysisLogs
+            displayName: 'Publish SARIF artifact'
+
+          - script: |
+              python - <<'EOF'
+              import json
+              import sys
+
+              with open("xray.json", encoding="utf-8") as f:
+                  results = json.load(f)
+              if isinstance(results, dict):
+                  results = [results]
+
+              vulnerabilities = [v for r in results for v in (r.get("vulnerabilities") or [])]
+              if vulnerabilities:
+                  print(f"##vso[task.logissue type=error]{len(vulnerabilities)} vulnerabilities detected by Xray")
+                  sys.exit(1)
+              print("No vulnerabilities detected")
+              EOF
+            displayName: 'Parse Vulnerabilities in Xray Report'
+
+  # The only place the package is built. `dist` is attached to this stage as a
+  # pipeline artifact, then uploaded to JFrog later stages will access this artifact. Artifact: dist.
+  - stage: DevBuild
+    displayName: 'JFrog Build and Publish'
+    dependsOn:
+      - Test
+      - Xray
+    condition: and( succeeded('Test'), succeeded('Xray'), or(eq(variables.isMain, true), eq(variables.isRC, true), eq(variables.isCICD, true)) )
+    jobs:
+      - job: BuildAndPublish
+        displayName: 'Build and publish'
+        steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: '3.12'
+              addToPath: true
+              architecture: 'x64'
+
+          - task: JFrogPip@1
+            displayName: 'Install uv (via JFrog)'
+            inputs:
+              artifactoryConnection: 'service-ado-jfrog-geodigital'
+              command: 'install'
+              arguments: '"uv>=0.12.9,<0.13"'
+              targetResolveRepo: 'gswa-pypi-virtual'
+
+          # uv can bump the version using 'uv version --frozen --bump patch --bump dev=$(Build.BuildId)'
+          # 0.5.0 -> 0.5.1.dev<BuildId>. --frozen only edits pyproject.toml in this
+          # checkout; uv.lock isn't touched and nothing is committed.
+          - script: |
+              set -euo pipefail
+              if [[ "$(isTag)" == "True" ]]; then
+                tag="${BUILD_SOURCEBRANCHNAME#v}"
+                version="$(uv version --short)"
+                if [[ "$tag" != "$version" ]]; then
+                  echo "##vso[task.logissue type=error]Tag v$tag does not match pyproject.toml version $version"
+                  exit 1
+                fi
+              else
+                uv version --frozen --bump patch --bump dev=$(Build.BuildId)
+              fi
+              echo "Building pytsg $(uv version --short)"
+            displayName: 'Set build version'
+
+          - script: |
+              uv --version
+              uv build
+              ls -lah dist/
+            displayName: 'Build sdist and wheel with uv'
+
+          # published before the upload so later stages can use it
+          - task: PublishPipelineArtifact@1
+            inputs:
+              targetPath: dist
+              artifactName: dist
+            displayName: 'Publish dist artifact'
+
+          - script: uv publish --publish-url "$(artifactory_pypi_url)" dist/*
+            env:
+              UV_PUBLISH_USERNAME: $(jfrog_bot_username)
+              # secrets aren't exposed to scripts unless mapped explicitly
+              UV_PUBLISH_PASSWORD: $(jfrog-bot-token)
+            displayName: 'Upload to JFrog Artifactory'
