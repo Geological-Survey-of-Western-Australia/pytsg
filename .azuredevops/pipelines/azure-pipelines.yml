@@ -115,9 +115,17 @@ stages:
               JFROG_ACCESS_TOKEN: $(jfrog-bot-token)
             displayName: 'Install and configure JFrog CLI'
 
+          # jf audit auto-detects uv from uv.lock and refuses ("uv is supported only
+          # for 'jf curation-audit' which does not create sarif output."), so audit from a folder holding only the
+          # exported requirements, which it treats as a plain pip project.
           - script: |
-              jf audit --requirements-file=requirements-ci.txt --format='json' > xray.json
-              jf audit --requirements-file=requirements-ci.txt --format='sarif' > xray.sarif
+              set -euo pipefail
+              audit_dir="$(Agent.TempDirectory)/xray-audit"
+              mkdir -p "$audit_dir"
+              cp requirements-ci.txt "$audit_dir/requirements.txt"
+              cd "$audit_dir"
+              jf audit --requirements-file=requirements.txt --format='json' > "$(Build.SourcesDirectory)/xray.json"
+              jf audit --requirements-file=requirements.txt --format='sarif' > "$(Build.SourcesDirectory)/xray.sarif"
             displayName: 'Xray Audit'
 
           - task: PublishPipelineArtifact@1
