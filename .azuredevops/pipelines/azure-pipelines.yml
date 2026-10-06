@@ -1,0 +1,76 @@
+trigger:
+  batch: true
+  branches:
+    include:
+    - '*'
+  tags:
+    include:
+    - 'v*'
+
+variables:
+  - group: gswa-pypi
+  - group: gswa-jfrog
+  # for releases
+  - name: isMain
+    value: $[eq(variables['Build.SourceBranch'], 'refs/heads/main')]
+  # for tagged releases (v*)
+  - name: isTag
+    value: $[startsWith(variables['Build.SourceBranch'], 'refs/tags/v')]
+  # for integration testing
+  - name: isRC
+    value: $[contains(variables['Build.SourceBranch'], 'releases/')]
+  # for modifying/reviewing pipeline
+  - name: isCICD
+    value: $[startsWith(variables['Build.SourceBranch'], 'refs/heads/cicd/')]
+
+pool:
+  vmImage: ubuntu-latest
+
+
+stages:
+  - stage: Test
+    displayName: 'UV - Unit Tests'
+    condition: always()
+    jobs:
+      - job: TestCoverage
+        displayName: 'Test Coverage'
+        steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: '3.12'
+              addToPath: true
+              architecture: 'x64'
+
+          - task: JFrogPip@1
+            displayName: 'Install uv (via JFrog)'
+            inputs:
+              artifactoryConnection: 'service-ado-jfrog-geodigital'
+              command: 'install'
+              arguments: '"uv>=0.12.9,<0.13"'
+              targetResolveRepo: 'gswa-pypi-virtual'
+
+          - script: |
+              uv --version
+              uv export --locked --all-extras --format requirements-txt -o requirements-ci.txt
+            displayName: 'Export pinned requirements from uv.lock'
+
+          - script: |
+              uv venv
+              uv pip sync requirements-ci.txt \
+                --index-url "https://$(jfrog_bot_username):${JFROG_TOKEN}@$(jfrog_host)/artifactory/api/pypi/gswa-pypi-virtual/simple"
+            env:
+              # secrets aren't exposed to scripts unless mapped explicitly
+              JFROG_TOKEN: $(jfrog-bot-token)
+              # use the interpreter from UsePythonVersion rather than downloading one
+              UV_PYTHON_PREFERENCE: only-system
+            displayName: 'Install locked dependencies with uv (via JFrog)'
+
+          # --no-sync: don't let `uv run` re-sync the venv from pypi.org
+          - script: uv run --no-sync pytest -v --tb=short --junitxml=test-results.xml
+            displayName: 'Run tests'
+
+          - task: PublishTestResults@2
+            condition: succeededOrFailed()
+            inputs:
+              testResultsFiles: test-results.xml
+              testRunTitle: pytest
