@@ -112,6 +112,19 @@ stages:
               JFROG_ACCESS_TOKEN: $(jfrog-bot-token)
             displayName: 'Install and configure JFrog CLI'
 
+          # curation-audit reads the Artifactory repo from uv's user config. Written
+          # on the agent only, so pyproject.toml stays on pypi.org for the public repo.
+          - script: |
+              mkdir -p ~/.config/uv
+              cat > ~/.config/uv/uv.toml <<EOF
+              [[index]]
+              name = "jfrog"
+              url = "https://$(jfrog_host)/artifactory/api/pypi/gswa-pypi-virtual/simple"
+              default = true
+              EOF
+              cat ~/.config/uv/uv.toml
+            displayName: 'Point uv at JFrog'
+
           - script: jf curation-audit
             displayName: 'JFrog Curation Audit'
 
