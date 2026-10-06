@@ -174,7 +174,7 @@ stages:
 
           - script: |
               uv --version
-              uv build
+              uv build --no-create-gitignore
               ls -lah dist/
             displayName: 'Build sdist and wheel with uv'
 
