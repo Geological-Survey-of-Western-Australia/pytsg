@@ -75,8 +75,9 @@ stages:
               testResultsFiles: test-results.xml
               testRunTitle: pytest
 
-  # Audits the locked dependencies (uv.lock) rather than a build, so it doesn't
-  # need to wait for one; runs alongside the unit tests. Artifact: SARIF report.
+  # Checks the dependencies in uv.lock against JFrog Curation policies (incl.
+  # CVE conditions and their waivers, managed in JFrog). curation-audit reads
+  # the uv project directly, so there's no export or report parsing here.
   - stage: Xray
     displayName: 'Xray Scan'
     dependsOn: []
@@ -84,7 +85,7 @@ stages:
     isSkippable: false
     jobs:
       - job: Audit
-        displayName: 'Audit locked dependencies'
+        displayName: 'Curation audit of uv.lock'
         steps:
           - task: UsePythonVersion@0
             inputs:
@@ -100,10 +101,6 @@ stages:
               arguments: '"uv>=0.12.9,<0.13"'
               targetResolveRepo: 'gswa-pypi-virtual'
 
-          # --no-emit-project: audit pytsg's dependencies, not pytsg itself
-          - script: uv export --locked --all-extras --no-emit-project --format requirements-txt -o requirements-ci.txt
-            displayName: 'Export pinned requirements from uv.lock'
-
           - script: |
               curl -fL https://install-cli.jfrog.io | sh
               jf config add jfrog-bot \
@@ -115,43 +112,8 @@ stages:
               JFROG_ACCESS_TOKEN: $(jfrog-bot-token)
             displayName: 'Install and configure JFrog CLI'
 
-          # jf audit auto-detects uv from uv.lock and refuses ("uv is supported only
-          # for 'jf curation-audit' which does not create sarif output."), so audit from a folder holding only the
-          # exported requirements, which it treats as a plain pip project.
-          - script: |
-              set -euo pipefail
-              audit_dir="$(Agent.TempDirectory)/xray-audit"
-              mkdir -p "$audit_dir"
-              cp requirements-ci.txt "$audit_dir/requirements.txt"
-              cd "$audit_dir"
-              jf audit --requirements-file=requirements.txt --format='json' > "$(Build.SourcesDirectory)/xray.json"
-              jf audit --requirements-file=requirements.txt --format='sarif' > "$(Build.SourcesDirectory)/xray.sarif"
-            displayName: 'Xray Audit'
-
-          - task: PublishPipelineArtifact@1
-            condition: succeededOrFailed()
-            inputs:
-              targetPath: xray.sarif
-              artifactName: CodeAnalysisLogs
-            displayName: 'Publish SARIF artifact'
-
-          - script: |
-              python - <<'EOF'
-              import json
-              import sys
-
-              with open("xray.json", encoding="utf-8") as f:
-                  results = json.load(f)
-              if isinstance(results, dict):
-                  results = [results]
-
-              vulnerabilities = [v for r in results for v in (r.get("vulnerabilities") or [])]
-              if vulnerabilities:
-                  print(f"##vso[task.logissue type=error]{len(vulnerabilities)} vulnerabilities detected by Xray")
-                  sys.exit(1)
-              print("No vulnerabilities detected")
-              EOF
-            displayName: 'Parse Vulnerabilities in Xray Report'
+          - script: jf curation-audit
+            displayName: 'JFrog Curation Audit'
 
   # The only place the package is built. `dist` is attached to this stage as a
   # pipeline artifact, then uploaded to JFrog later stages will access this artifact. Artifact: dist.
