@@ -28,16 +28,12 @@ Thanks to CSIRO and in particular Dr Andrew Rodger for assistance in decoding th
    related/related
    citation/citation
 
-.. TEMP: intentional Sphinx warning to prove the pipeline Docs stage and
-   Read the Docs fail on warnings. Remove the missing-page entry before merging.
-
 .. toctree::
    :maxdepth: 2
    :caption: Development
    :hidden:
 
    contributing/contributing
-   intentional-warning/missing-page
 
 .. toctree::
    :maxdepth: 2
