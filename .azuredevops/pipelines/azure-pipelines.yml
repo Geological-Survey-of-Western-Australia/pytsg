@@ -61,7 +61,7 @@ stages:
 
           - script: |
               uv --version
-              uv export --locked --all-extras --format requirements-txt -o requirements-ci.txt
+              uv export --locked --all-extras --format requirements-txt --output-file requirements-ci.txt
             displayName: 'Export pinned requirements from uv.lock'
 
           - script: |
@@ -76,7 +76,7 @@ stages:
             displayName: 'Install locked dependencies with uv (via JFrog)'
 
           # --no-sync: don't let `uv run` re-sync the venv from pypi.org
-          - script: uv run --no-sync pytest -v --tb=short --junitxml=test-results.xml
+          - script: uv run --no-sync pytest --verbose --tb=short --junitxml=test-results.xml
             displayName: 'Run tests'
 
           - task: PublishTestResults@2
@@ -112,7 +112,7 @@ stages:
               targetResolveRepo: 'gswa-pypi-virtual'
 
           - script: |
-              curl -fL https://install-cli.jfrog.io | sh
+              curl --fail --location https://install-cli.jfrog.io | sh
               jf config add jfrog-bot \
                 --url="$JFROG_URL" \
                 --access-token="$JFROG_ACCESS_TOKEN" \
@@ -125,7 +125,7 @@ stages:
           # curation-audit reads the Artifactory repo from uv's user config. Written
           # on the agent only, so pyproject.toml stays on pypi.org for the public repo.
           - script: |
-              mkdir -p ~/.config/uv
+              mkdir --parents ~/.config/uv
               cat > ~/.config/uv/uv.toml <<EOF
               [[index]]
               name = "jfrog"
@@ -168,7 +168,7 @@ stages:
           # 0.5.0 -> 0.5.1.dev<BuildId>. --frozen only edits pyproject.toml in this
           # checkout; uv.lock isn't touched and nothing is committed.
           - script: |
-              set -euo pipefail
+              set -o errexit -o nounset -o pipefail
               if [[ "$(isTag)" == "True" ]]; then
                 tag="${BUILD_SOURCEBRANCHNAME#v}"
                 version="$(uv version --short)"
@@ -185,7 +185,7 @@ stages:
           - script: |
               uv --version
               uv build --no-create-gitignore
-              ls -lah dist/
+              ls --format=long --all --human-readable dist/
             displayName: 'Build sdist and wheel with uv'
 
           # published before the upload so later stages can use it
@@ -229,7 +229,7 @@ stages:
 
           - script: |
               uv --version
-              uv export --locked --format requirements-txt -o requirements-docs.txt
+              uv export --locked --format requirements-txt --output-file requirements-docs.txt
             displayName: 'Export pinned requirements from uv.lock'
 
           - script: |
@@ -243,8 +243,8 @@ stages:
               UV_PYTHON_PREFERENCE: only-system
             displayName: 'Install locked dependencies with uv (via JFrog)'
 
-          # -W --keep-going: fail on any warning, but report all of them first
-          - script: uv run --no-sync python -m sphinx -T -W --keep-going -b html doc/source doc/build/html
+          # --fail-on-warning: fails the build on any warning, after reporting all of them
+          - script: uv run --no-sync python -m sphinx --show-traceback --fail-on-warning --builder html doc/source doc/build/html
             displayName: 'Build docs with Sphinx'
 
           - task: PublishPipelineArtifact@1
