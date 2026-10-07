@@ -2,10 +2,20 @@ trigger:
   batch: true
   branches:
     include:
-    - '*'
+    - main
+    - releases/*
+    - cicd/*
   tags:
     include:
     - 'v*'
+
+# PR validation only: Build.SourceBranch is refs/pull/<n>/merge, so DevBuild
+# (gated on isMain/isRC/isCICD) doesn't publish from PR builds.
+pr:
+  branches:
+    include:
+    - main
+    - releases/*
 
 variables:
   - group: gswa-pypi
