@@ -243,12 +243,20 @@ stages:
               UV_PYTHON_PREFERENCE: only-system
             displayName: 'Install locked dependencies with uv (via JFrog)'
 
-          # --fail-on-warning: fails the build on any warning, after reporting all of them
-          - script: uv run --no-sync python -m sphinx --show-traceback --fail-on-warning --builder html doc/source doc/build/html
+          # --fail-on-warning: fails the build on any warning, after reporting all of them.
+          # Full output is tee'd and warnings written separately for the logs artifact.
+          - script: |
+              set -o errexit -o nounset -o pipefail
+              mkdir --parents doc/build/logs
+              uv run --no-sync python -m sphinx --show-traceback --no-color --fail-on-warning \
+                --warning-file doc/build/logs/sphinx-warnings.log \
+                --builder html doc/source doc/build/html 2>&1 | tee doc/build/logs/sphinx-build.log
             displayName: 'Build docs with Sphinx'
 
+          # logs only, not the HTML; JobAttempt keeps the name unique when a job is re-run
           - task: PublishPipelineArtifact@1
+            condition: succeededOrFailed()
             inputs:
-              targetPath: doc/build/html
-              artifactName: docs-html
-            displayName: 'Publish built docs'
+              targetPath: doc/build/logs
+              artifactName: docs-logs-$(System.JobAttempt)
+            displayName: 'Publish Sphinx logs'
