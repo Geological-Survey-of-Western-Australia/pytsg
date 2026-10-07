@@ -28,7 +28,7 @@ variables:
     value: $[startsWith(variables['Build.SourceBranch'], 'refs/tags/v')]
   # for integration testing
   - name: isRC
-    value: $[contains(variables['Build.SourceBranch'], 'releases/')]
+    value: $[startsWith(variables['Build.SourceBranch'], 'refs/heads/releases/')]
   # for modifying/reviewing pipeline
   - name: isCICD
     value: $[startsWith(variables['Build.SourceBranch'], 'refs/heads/cicd/')]
