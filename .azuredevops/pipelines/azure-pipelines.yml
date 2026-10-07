@@ -201,3 +201,54 @@ stages:
               # secrets aren't exposed to scripts unless mapped explicitly
               UV_PUBLISH_PASSWORD: $(jfrog-bot-token)
             displayName: 'Upload to JFrog Artifactory'
+
+  # Mirrors the Read the Docs build (.readthedocs.yaml, fail_on_warning) so doc
+  # breakage shows up here before merge. Dependencies come via JFrog, as in Test.
+  - stage: Docs
+    displayName: 'Sphinx - Docs Build'
+    dependsOn: DevBuild
+    # DevBuild is skipped on PR builds and other branches; still build docs then.
+    condition: and(not(canceled()), in(dependencies.DevBuild.result, 'Succeeded', 'Skipped'))
+    jobs:
+      - job: BuildDocs
+        displayName: 'Build docs (warnings as errors)'
+        steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: '3.12'
+              addToPath: true
+              architecture: 'x64'
+
+          - task: JFrogPip@1
+            displayName: 'Install uv (via JFrog)'
+            inputs:
+              artifactoryConnection: 'service-ado-jfrog-geodigital'
+              command: 'install'
+              arguments: '"uv>=0.12.9,<0.13"'
+              targetResolveRepo: 'gswa-pypi-virtual'
+
+          - script: |
+              uv --version
+              uv export --locked --format requirements-txt -o requirements-docs.txt
+            displayName: 'Export pinned requirements from uv.lock'
+
+          - script: |
+              uv venv
+              uv pip sync requirements-docs.txt \
+                --index-url "https://$(jfrog_bot_username):${JFROG_TOKEN}@$(jfrog_host)/artifactory/api/pypi/gswa-pypi-virtual/simple"
+            env:
+              # secrets aren't exposed to scripts unless mapped explicitly
+              JFROG_TOKEN: $(jfrog-bot-token)
+              # use the interpreter from UsePythonVersion rather than downloading one
+              UV_PYTHON_PREFERENCE: only-system
+            displayName: 'Install locked dependencies with uv (via JFrog)'
+
+          # -W --keep-going: fail on any warning, but report all of them first
+          - script: uv run --no-sync python -m sphinx -T -W --keep-going -b html doc/source doc/build/html
+            displayName: 'Build docs with Sphinx'
+
+          - task: PublishPipelineArtifact@1
+            inputs:
+              targetPath: doc/build/html
+              artifactName: docs-html
+            displayName: 'Publish built docs'
