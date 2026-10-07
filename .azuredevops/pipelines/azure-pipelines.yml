@@ -91,6 +91,7 @@ stages:
   - stage: Xray
     displayName: 'Xray Scan'
     dependsOn: []
+    # deliberate: someone has to choose to start the build/publish chain
     trigger: manual
     isSkippable: false
     jobs:
@@ -145,7 +146,7 @@ stages:
     dependsOn:
       - Test
       - Xray
-    condition: and( succeeded('Test'), succeeded('Xray'), or(eq(variables.isMain, true), eq(variables.isRC, true), eq(variables.isCICD, true)) )
+    condition: and( succeeded('Test'), succeeded('Xray'), or(eq(variables.isMain, true), eq(variables.isRC, true), eq(variables.isCICD, true), eq(variables.isTag, true)) )
     jobs:
       - job: BuildAndPublish
         displayName: 'Build and publish'
@@ -174,6 +175,17 @@ stages:
                 version="$(uv version --short)"
                 if [[ "$tag" != "$version" ]]; then
                   echo "##vso[task.logissue type=error]Tag v$tag does not match pyproject.toml version $version"
+                  exit 1
+                fi
+                # releases must come from main: the tagged commit has to be in main's history.
+                # The checkout is shallow, so fetch main's full history first (tag runs only).
+                if [[ "$(git rev-parse --is-shallow-repository)" == "true" ]]; then
+                  git fetch --no-tags --unshallow origin +refs/heads/main:refs/remotes/origin/main
+                else
+                  git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+                fi
+                if ! git merge-base --is-ancestor HEAD origin/main; then
+                  echo "##vso[task.logissue type=error]Tag v$tag is not on main; releases must be tagged on a commit in main"
                   exit 1
                 fi
               else
@@ -260,3 +272,91 @@ stages:
               targetPath: doc/build/logs
               artifactName: docs-logs-$(System.JobAttempt)
             displayName: 'Publish Sphinx logs'
+
+  # Uploads DevBuild's `dist` artifact (no rebuild) to TestPyPI: dev versions
+  # from main and cicd/*, and the release version from v* tags ahead of PyPI.
+  - stage: TestRelease
+    displayName: 'Publish to TestPyPI'
+    dependsOn: DevBuild
+    condition: and( succeeded('DevBuild'), or(eq(variables.isMain, true), eq(variables.isCICD, true), eq(variables.isTag, true)) )
+    jobs:
+      - job: UploadTestPyPI
+        displayName: 'Upload dist to TestPyPI'
+        steps:
+          - checkout: none
+
+          - download: current
+            artifact: dist
+            displayName: 'Download dist artifact'
+
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: '3.12'
+              addToPath: true
+              architecture: 'x64'
+
+          - task: JFrogPip@1
+            displayName: 'Install uv (via JFrog)'
+            inputs:
+              artifactoryConnection: 'service-ado-jfrog-geodigital'
+              command: 'install'
+              arguments: '"uv>=0.12.9,<0.13"'
+              targetResolveRepo: 'gswa-pypi-virtual'
+
+          # --check-url skips files already on TestPyPI, so re-running the job doesn't fail
+          - script: |
+              ls --format=long --all --human-readable "$(Pipeline.Workspace)/dist"
+              uv publish \
+                --publish-url https://test.pypi.org/legacy/ \
+                --check-url https://test.pypi.org/simple/ \
+                "$(Pipeline.Workspace)"/dist/*
+            env:
+              # secrets aren't exposed to scripts unless mapped explicitly
+              UV_PUBLISH_TOKEN: $(test_pypi_token_global)
+            displayName: 'Upload to TestPyPI'
+
+  # Releases to PyPI from v* tags only, once the same files are on TestPyPI, the
+  # docs build cleanly, and an approver signs off. DevBuild has already checked the tag matches pyproject.toml.
+  - stage: Release
+    displayName: 'Publish to PyPI'
+    dependsOn:
+      - TestRelease
+      - Docs
+    condition: and( succeeded('TestRelease'), succeeded('Docs'), eq(variables.isTag, true) )
+    jobs:
+      # deployment job: the pypi environment holds the release approval and a
+      # branch control check (refs/tags/v*), configured in ADO, not in this file
+      - deployment: UploadPyPI
+        displayName: 'Upload dist to PyPI'
+        environment: pypi
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - download: current
+                  artifact: dist
+                  displayName: 'Download dist artifact'
+
+                - task: UsePythonVersion@0
+                  inputs:
+                    versionSpec: '3.12'
+                    addToPath: true
+                    architecture: 'x64'
+
+                - task: JFrogPip@1
+                  displayName: 'Install uv (via JFrog)'
+                  inputs:
+                    artifactoryConnection: 'service-ado-jfrog-geodigital'
+                    command: 'install'
+                    arguments: '"uv>=0.12.9,<0.13"'
+                    targetResolveRepo: 'gswa-pypi-virtual'
+
+                - script: |
+                    ls --format=long --all --human-readable "$(Pipeline.Workspace)/dist"
+                    uv publish \
+                      --check-url https://pypi.org/simple/ \
+                      "$(Pipeline.Workspace)"/dist/*
+                  env:
+                    # secrets aren't exposed to scripts unless mapped explicitly
+                    UV_PUBLISH_TOKEN: $(pypi_token_global)
+                  displayName: 'Upload to PyPI'
