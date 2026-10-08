@@ -321,7 +321,7 @@ def read_spectra(
     Args:
         tsg_file (Union[Path, str]): path to .tsg file
         bip_file (Union[Path, str]): path to matching .bip file
-        spectrum_name (str, optional): nir/tir. Defaults to "nir".
+        spectrum_name (str, optional): "nir"/"mir"/"tir". Defaults to "nir".
 
     Returns:
         Spectra: A Spectra object containing the raw spectra, scalars, and metadata

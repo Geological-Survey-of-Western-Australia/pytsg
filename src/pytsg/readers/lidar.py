@@ -14,7 +14,7 @@ def read_lidar(path: Union[str, Path], *, per_spectra: bool = True) -> NDArray:
 
     Note:
         HyLogger data will usually have more LiDAR data points than samples so
-        we return the mean value per sample when `per_sample` is `True`.
+        we return the mean value per sample when `per_spectra` is `True`.
 
     Args:
         path (Union[str, Path]): path to `*_hires.dat` containing LiDAR data.
