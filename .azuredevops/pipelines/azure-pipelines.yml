@@ -166,7 +166,8 @@ stages:
               targetResolveRepo: 'gswa-pypi-virtual'
 
           # uv can bump the version using 'uv version --frozen --bump patch --bump dev=$(Build.BuildId)'
-          # 0.5.0 -> 0.5.1.dev<BuildId>. --frozen only edits pyproject.toml in this
+          # 0.5.0 -> 0.5.1.dev<BuildId>, or 1.0.0.dev0 -> 1.0.0.dev<BuildId> when pyproject.toml
+          # already holds a dev version. Tag runs build the version as-is. --frozen only edits pyproject.toml in this
           # checkout; uv.lock isn't touched and nothing is committed.
           - script: |
               set -o errexit -o nounset -o pipefail
@@ -188,6 +189,10 @@ stages:
                   echo "##vso[task.logissue type=error]Tag v$tag is not on main; releases must be tagged on a commit in main"
                   exit 1
                 fi
+              elif [[ "$(uv version --short)" == *.dev* ]]; then
+                # pyproject.toml already holds a .devN version (e.g. 1.0.0.dev0): keep it as the
+                # base and only swap N for the BuildId -> 1.0.0.dev<BuildId>
+                uv version --frozen --bump dev=$(Build.BuildId)
               else
                 uv version --frozen --bump patch --bump dev=$(Build.BuildId)
               fi
