@@ -1,3 +1,5 @@
+"""pytsg is a library for reading .tsg file packages."""
+
 from importlib.metadata import PackageNotFoundError, version
 
 try:
@@ -5,3 +7,17 @@ try:
 except PackageNotFoundError:
     # Package is not installed (e.g. running locally during development)
     __version__ = "0.0.0"
+
+from .api import read_cras, read_lidar, read_spectra, read_tsg
+from .models import TSG, Cras, Spectra
+
+__all__ = [
+    "__version__",
+    "TSG",
+    "Spectra",
+    "Cras",
+    "read_tsg",
+    "read_cras",
+    "read_lidar",
+    "read_spectra",
+]

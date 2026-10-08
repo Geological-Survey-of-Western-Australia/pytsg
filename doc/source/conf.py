@@ -13,6 +13,8 @@
 import os
 import sys
 
+from docutils import nodes
+
 sys.path.insert(0, os.path.abspath("../src/pytsg"))
 
 # -- Project information -----------------------------------------------------
@@ -35,7 +37,15 @@ extensions = [
     "sphinx_autodoc_typehints",
     "myst_parser",  # for parsing md files
     "sphinx.ext.autosectionlabel",  # enables links to sections
+    "sphinx_llm.txt",  # Generate llms.txt and .md for LLMs and agents to consume
 ]
+
+# Suppress Markdown-builder warnings for all unknown node types (True)
+# or for an exact, case-sensitive sequence of node class names such
+# as ["caption", "desc_inline"].
+llms_txt_suppress_unknown_node_warnings = True
+
+autosectionlabel_prefix_document = True
 
 autosummary_generate = True
 
@@ -43,7 +53,7 @@ sphinx_gallery_conf = {
     "filename_pattern": r"\.py",
     "ignore_pattern": r"__init__\.py",
     "examples_dirs": "../../examples",  # path to your example scripts
-    "gallery_dirs": "auto_examples",  # path to where to save gallery generated output
+    "gallery_dirs": "examples",  # path to where to save gallery generated output
     "write_computation_times": False,
 }
 
@@ -65,3 +75,21 @@ rst_epilog = """
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
 html_theme = "sphinx_rtd_theme"
+html_static_path = ["_static"]
+html_css_files = ["css/dmpe.css"]
+
+# -- llms.txt improvements --------------------------------------------------------
+
+
+def _strip_gallery_download_note(app, doctree, docname):
+    """Drop Sphinx-Gallery's 'Go to the end to download' note from the llms.txt
+    markdown build so each example's real title is used in llms.txt."""
+    if app.builder.name != "llms-markdown":
+        return  # keep the note on the normal HTML site
+    for node in list(doctree.findall(nodes.note)):
+        if "sphx-glr-download-link-note" in node.get("classes", []):
+            node.parent.remove(node)
+
+
+def setup(app):
+    app.connect("doctree-resolved", _strip_gallery_download_note)

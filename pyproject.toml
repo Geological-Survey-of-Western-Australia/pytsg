@@ -59,13 +59,46 @@ dev = [
     "sphinx-autobuild>=2025.8.25",
     "ruff>=0.16.6",
     "ty>=0.0.78",
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+    "pyarrow>=25.0.1",
+    "sphinx-llm>=1.1.0",
 ]
+
+[tool.uv]
+# sphinx-llm includes the README.md in llms.txt from the locally installed
+# version of pytsg. Include it as a cache key to invalidate the build when
+# it changes or you won't be able to pick up new changes when testing locally.
+cache-keys = [{ file = "pyproject.toml" }, { file = "README.md" }]
 
 [tool.ruff]
 line-length = 110
 
 [tool.ruff.lint]
-select = ["B", "E", "F", "Q", "W", "I"]
+preview = true
+explicit-preview-rules = true
+select = ["B", "D", "DOC202", "DOC102", "DOC201", "E", "F", "Q", "W", "I"]
+ignore = ["D203", "D212"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+ignore-var-parameters = true
 
 [tool.ruff.lint.flake8-quotes]
 inline-quotes = "double"
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/*" = ["B", "D", "DOC202", "DOC102", "DOC201"]
+"**/examples/*" = ["B", "D", "DOC202", "DOC102", "DOC201"]
+"**/doc/source/conf.py" = ["B", "D", "DOC202", "DOC102", "DOC201"]
+"**/src/pytsg/parse_tsg.py" = ["DOC202", "DOC102", "DOC201"]
+
+[tool.coverage.run]
+omit = [
+    "tests/*",
+    "**/test_*.py",
+]
+
+[tool.ty.src]
+include = ["src", "tests"]
+exclude = ["examples"]
