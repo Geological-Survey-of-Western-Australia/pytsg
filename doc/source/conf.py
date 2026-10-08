@@ -13,6 +13,8 @@
 import os
 import sys
 
+from docutils import nodes
+
 sys.path.insert(0, os.path.abspath("../src/pytsg"))
 
 # -- Project information -----------------------------------------------------
@@ -75,3 +77,19 @@ rst_epilog = """
 html_theme = "sphinx_rtd_theme"
 html_static_path = ["_static"]
 html_css_files = ["css/dmpe.css"]
+
+# -- llms.txt improvements --------------------------------------------------------
+
+
+def _strip_gallery_download_note(app, doctree, docname):
+    """Drop Sphinx-Gallery's 'Go to the end to download' note from the llms.txt
+    markdown build so each example's real title is used in llms.txt."""
+    if app.builder.name != "llms-markdown":
+        return  # keep the note on the normal HTML site
+    for node in list(doctree.findall(nodes.note)):
+        if "sphx-glr-download-link-note" in node.get("classes", []):
+            node.parent.remove(node)
+
+
+def setup(app):
+    app.connect("doctree-resolved", _strip_gallery_download_note)

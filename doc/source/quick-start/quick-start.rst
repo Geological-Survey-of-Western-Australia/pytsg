@@ -71,7 +71,7 @@ Loading a TSG package is as simple as calling the :func:`pytsg.read_tsg` functio
       lidar: ndarray(shape=(625,), dtype=float32),
    )
 
-By default :func:`pytsg.read_tsg` won't load the :term:`CRAS` file, but you can set the `load_cras` argument to `True` to load it as well.
+By default :func:`pytsg.read_tsg` won't load the :term:`CRAS` file, but you can set the `include_cras` argument to `True` to load it as well.
 
 .. code-block:: python
 
