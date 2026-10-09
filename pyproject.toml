@@ -14,7 +14,7 @@ dependencies = [
     "simplejpeg>=1.9.0",
     "scipy>=1.16.0",
     'dhcomp',
-    "urllib3=2.7.0"
+    "urllib3==2.7.0"
 ]
 keywords = [
     "tsg",
