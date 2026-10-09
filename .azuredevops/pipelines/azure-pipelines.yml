@@ -137,8 +137,22 @@ stages:
             displayName: 'Point uv at JFrog'
 
           # --include-cached-packages: Curation only evaluates packages when they first enter
-          # the remote cache, so without it anything already cached passes the audit unchecked
-          - script: jf curation-audit --include-cached-packages
+          # the remote cache, so without it anything already cached passes the audit unchecked.
+          # curation-audit has no --fail flag and exits 0 even when it finds blocked packages,
+          # so fail the step from its "Found N blocked packages" summary line(s).
+          - script: |
+              set -o errexit -o nounset -o pipefail
+              jf curation-audit --include-cached-packages 2>&1 | tee curation-audit.log
+              counts="$(grep --only-matching --perl-regexp 'Found \K[0-9]+(?= blocked packages)' curation-audit.log || true)"
+              if [[ -z "$counts" ]]; then
+                echo "##vso[task.logissue type=error]Couldn't find the blocked package count in the curation-audit output"
+                exit 1
+              fi
+              blocked="$(echo "$counts" | awk '{ total += $1 } END { print total }')"
+              if (( blocked > 0 )); then
+                echo "##vso[task.logissue type=error]Curation audit found $blocked blocked package(s); see the table above"
+                exit 1
+              fi
             env:
               # logs the uv lock command and index jf uses, and each package request
               JFROG_CLI_LOG_LEVEL: DEBUG
