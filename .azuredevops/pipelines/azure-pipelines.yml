@@ -66,7 +66,7 @@ stages:
 
           - script: |
               uv venv
-              uv pip sync requirements-ci.txt \
+              uv pip sync --verbose requirements-ci.txt \
                 --index-url "https://$(jfrog_bot_username):${JFROG_TOKEN}@$(jfrog_host)/artifactory/api/pypi/gswa-pypi-virtual/simple"
             env:
               # secrets aren't exposed to scripts unless mapped explicitly
@@ -137,6 +137,9 @@ stages:
             displayName: 'Point uv at JFrog'
 
           - script: jf curation-audit
+            env:
+              # logs the uv lock command and index jf uses, and each package request
+              JFROG_CLI_LOG_LEVEL: DEBUG
             displayName: 'JFrog Curation Audit'
 
   # The only place the package is built. `dist` is attached to this stage as a
@@ -201,7 +204,7 @@ stages:
 
           - script: |
               uv --version
-              uv build --no-create-gitignore
+              uv build --verbose --no-create-gitignore
               ls --format=long --all --human-readable dist/
             displayName: 'Build sdist and wheel with uv'
 
@@ -212,7 +215,7 @@ stages:
               artifactName: dist
             displayName: 'Publish dist artifact'
 
-          - script: uv publish --publish-url "$(artifactory_pypi_url)" dist/*
+          - script: uv publish --verbose --publish-url "$(artifactory_pypi_url)" dist/*
             env:
               UV_PUBLISH_USERNAME: $(jfrog_bot_username)
               # secrets aren't exposed to scripts unless mapped explicitly
@@ -251,7 +254,7 @@ stages:
 
           - script: |
               uv venv
-              uv pip sync requirements-docs.txt \
+              uv pip sync --verbose requirements-docs.txt \
                 --index-url "https://$(jfrog_bot_username):${JFROG_TOKEN}@$(jfrog_host)/artifactory/api/pypi/gswa-pypi-virtual/simple"
             env:
               # secrets aren't exposed to scripts unless mapped explicitly
@@ -311,7 +314,7 @@ stages:
           # --check-url skips files already on TestPyPI, so re-running the job doesn't fail
           - script: |
               ls --format=long --all --human-readable "$(Pipeline.Workspace)/dist"
-              uv publish \
+              uv publish --verbose \
                 --publish-url https://test.pypi.org/legacy/ \
                 --check-url https://test.pypi.org/simple/ \
                 "$(Pipeline.Workspace)"/dist/*
@@ -358,7 +361,7 @@ stages:
 
                 - script: |
                     ls --format=long --all --human-readable "$(Pipeline.Workspace)/dist"
-                    uv publish \
+                    uv publish --verbose \
                       --check-url https://pypi.org/simple/ \
                       "$(Pipeline.Workspace)"/dist/*
                   env:
