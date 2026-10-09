@@ -225,7 +225,7 @@ stages:
     displayName: 'Sphinx - Docs Build'
     dependsOn: DevBuild
     # DevBuild is skipped on PR builds and other branches; still build docs then.
-    condition: and(not(canceled()), in(dependencies.DevBuild.result, 'Succeeded', 'Skipped'))
+    condition: and(not(canceled()), in(dependencies.TestCoverage.result, 'Succeeded'))
     jobs:
       - job: BuildDocs
         displayName: 'Build docs (warnings as errors)'
