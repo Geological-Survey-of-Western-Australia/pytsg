@@ -1,0 +1,386 @@
+trigger:
+  batch: true
+  branches:
+    include:
+    - main
+    - releases/*
+    - cicd/*
+  tags:
+    include:
+    - 'v*'
+
+# PR validation only: Build.SourceBranch is refs/pull/<n>/merge, so DevBuild
+# (gated on isMain/isRC/isCICD) doesn't publish from PR builds.
+pr:
+  branches:
+    include:
+    - main
+    - releases/*
+
+variables:
+  - group: gswa-pypi
+  - group: gswa-jfrog
+  # for releases
+  - name: isMain
+    value: $[eq(variables['Build.SourceBranch'], 'refs/heads/main')]
+  # for tagged releases (v*)
+  - name: isTag
+    value: $[startsWith(variables['Build.SourceBranch'], 'refs/tags/v')]
+  # for integration testing
+  - name: isRC
+    value: $[startsWith(variables['Build.SourceBranch'], 'refs/heads/releases/')]
+  # for modifying/reviewing pipeline
+  - name: isCICD
+    value: $[startsWith(variables['Build.SourceBranch'], 'refs/heads/cicd/')]
+
+pool:
+  vmImage: ubuntu-latest
+
+
+stages:
+  - stage: Test
+    displayName: 'UV - Unit Tests'
+    condition: always()
+    jobs:
+      - job: TestCoverage
+        displayName: 'Test Coverage'
+        steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: '3.12'
+              addToPath: true
+              architecture: 'x64'
+
+          - task: JFrogPip@1
+            displayName: 'Install uv (via JFrog)'
+            inputs:
+              artifactoryConnection: 'service-ado-jfrog-geodigital'
+              command: 'install'
+              arguments: '"uv>=0.12.9,<0.13"'
+              targetResolveRepo: 'gswa-pypi-virtual'
+
+          - script: |
+              uv --version
+              uv export --locked --all-extras --format requirements-txt --output-file requirements-ci.txt
+            displayName: 'Export pinned requirements from uv.lock'
+
+          - script: |
+              uv venv
+              uv pip sync --verbose requirements-ci.txt \
+                --index-url "https://$(jfrog_bot_username):${JFROG_TOKEN}@$(jfrog_host)/artifactory/api/pypi/gswa-pypi-virtual/simple"
+            env:
+              # secrets aren't exposed to scripts unless mapped explicitly
+              JFROG_TOKEN: $(jfrog-bot-token)
+              # use the interpreter from UsePythonVersion rather than downloading one
+              UV_PYTHON_PREFERENCE: only-system
+            displayName: 'Install locked dependencies with uv (via JFrog)'
+
+          # --no-sync: don't let `uv run` re-sync the venv from pypi.org
+          - script: uv run --no-sync pytest --verbose --tb=short --junitxml=test-results.xml
+            displayName: 'Run tests'
+
+          - task: PublishTestResults@2
+            condition: succeededOrFailed()
+            inputs:
+              testResultsFiles: test-results.xml
+              testRunTitle: pytest
+
+  # Checks the dependencies in uv.lock against JFrog Curation policies (incl.
+  # CVE conditions and their waivers, managed in JFrog). curation-audit reads
+  # the uv project directly, so there's no export or report parsing here.
+  - stage: Xray
+    displayName: 'Xray Scan'
+    dependsOn: []
+    # deliberate: someone has to choose to start the build/publish chain
+    trigger: manual
+    isSkippable: false
+    jobs:
+      - job: Audit
+        displayName: 'Curation audit of uv.lock'
+        steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: '3.12'
+              addToPath: true
+              architecture: 'x64'
+
+          - task: JFrogPip@1
+            displayName: 'Install uv (via JFrog)'
+            inputs:
+              artifactoryConnection: 'service-ado-jfrog-geodigital'
+              command: 'install'
+              arguments: '"uv>=0.12.9,<0.13"'
+              targetResolveRepo: 'gswa-pypi-virtual'
+
+          - script: |
+              curl --fail --location https://install-cli.jfrog.io | sh
+              jf config add jfrog-bot \
+                --url="$JFROG_URL" \
+                --access-token="$JFROG_ACCESS_TOKEN" \
+                --interactive=false
+            env:
+              JFROG_URL: $(jfrog_url)
+              JFROG_ACCESS_TOKEN: $(jfrog-bot-token)
+            displayName: 'Install and configure JFrog CLI'
+
+          # curation-audit reads the Artifactory repo from uv's user config. Written
+          # on the agent only, so pyproject.toml stays on pypi.org for the public repo.
+          - script: |
+              mkdir --parents ~/.config/uv
+              cat > ~/.config/uv/uv.toml <<EOF
+              [[index]]
+              name = "jfrog"
+              url = "https://$(jfrog_host)/artifactory/api/pypi/gswa-pypi-virtual/simple"
+              default = true
+              EOF
+              cat ~/.config/uv/uv.toml
+            displayName: 'Point uv at JFrog'
+
+          # --include-cached-packages: Curation only evaluates packages when they first enter
+          # the remote cache, so without it anything already cached passes the audit unchecked.
+          # curation-audit has no --fail flag and exits 0 even when it finds blocked packages,
+          # so fail the step from its "Found N blocked packages" summary line(s).
+          - script: |
+              set -o errexit -o nounset -o pipefail
+              jf curation-audit --include-cached-packages 2>&1 | tee curation-audit.log
+              counts="$(grep --only-matching --perl-regexp 'Found \K[0-9]+(?= blocked packages)' curation-audit.log || true)"
+              if [[ -z "$counts" ]]; then
+                echo "##vso[task.logissue type=error]Couldn't find the blocked package count in the curation-audit output"
+                exit 1
+              fi
+              blocked="$(echo "$counts" | awk '{ total += $1 } END { print total }')"
+              if (( blocked > 0 )); then
+                echo "##vso[task.logissue type=error]Curation audit found $blocked blocked package(s); see the table above"
+                exit 1
+              fi
+            env:
+              # logs the uv lock command and index jf uses, and each package request
+              JFROG_CLI_LOG_LEVEL: DEBUG
+            displayName: 'JFrog Curation Audit'
+
+  # The only place the package is built. `dist` is attached to this stage as a
+  # pipeline artifact, then uploaded to JFrog later stages will access this artifact. Artifact: dist.
+  - stage: DevBuild
+    displayName: 'JFrog Build and Publish'
+    dependsOn:
+      - Test
+      - Xray
+    condition: and( succeeded('Test'), succeeded('Xray'), or(eq(variables.isMain, true), eq(variables.isRC, true), eq(variables.isCICD, true), eq(variables.isTag, true)) )
+    jobs:
+      - job: BuildAndPublish
+        displayName: 'Build and publish'
+        steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: '3.12'
+              addToPath: true
+              architecture: 'x64'
+
+          - task: JFrogPip@1
+            displayName: 'Install uv (via JFrog)'
+            inputs:
+              artifactoryConnection: 'service-ado-jfrog-geodigital'
+              command: 'install'
+              arguments: '"uv>=0.12.9,<0.13"'
+              targetResolveRepo: 'gswa-pypi-virtual'
+
+          # uv can bump the version using 'uv version --frozen --bump patch --bump dev=$(Build.BuildId)'
+          # 0.5.0 -> 0.5.1.dev<BuildId>, or 1.0.0.dev0 -> 1.0.0.dev<BuildId> when pyproject.toml
+          # already holds a dev version. Tag runs build the version as-is. --frozen only edits pyproject.toml in this
+          # checkout; uv.lock isn't touched and nothing is committed.
+          - script: |
+              set -o errexit -o nounset -o pipefail
+              if [[ "$(isTag)" == "True" ]]; then
+                tag="${BUILD_SOURCEBRANCHNAME#v}"
+                version="$(uv version --short)"
+                if [[ "$tag" != "$version" ]]; then
+                  echo "##vso[task.logissue type=error]Tag v$tag does not match pyproject.toml version $version"
+                  exit 1
+                fi
+                # releases must come from main: the tagged commit has to be in main's history.
+                # The checkout is shallow, so fetch main's full history first (tag runs only).
+                if [[ "$(git rev-parse --is-shallow-repository)" == "true" ]]; then
+                  git fetch --no-tags --unshallow origin +refs/heads/main:refs/remotes/origin/main
+                else
+                  git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+                fi
+                if ! git merge-base --is-ancestor HEAD origin/main; then
+                  echo "##vso[task.logissue type=error]Tag v$tag is not on main; releases must be tagged on a commit in main"
+                  exit 1
+                fi
+              elif [[ "$(uv version --short)" == *.dev* ]]; then
+                # pyproject.toml already holds a .devN version (e.g. 1.0.0.dev0): keep it as the
+                # base and only swap N for the BuildId -> 1.0.0.dev<BuildId>
+                uv version --frozen --bump dev=$(Build.BuildId)
+              else
+                uv version --frozen --bump patch --bump dev=$(Build.BuildId)
+              fi
+              echo "Building pytsg $(uv version --short)"
+            displayName: 'Set build version'
+
+          - script: |
+              uv --version
+              uv build --verbose --no-create-gitignore
+              ls --format=long --all --human-readable dist/
+            displayName: 'Build sdist and wheel with uv'
+
+          # published before the upload so later stages can use it
+          - task: PublishPipelineArtifact@1
+            inputs:
+              targetPath: dist
+              artifactName: dist
+            displayName: 'Publish dist artifact'
+
+          - script: uv publish --verbose --publish-url "$(artifactory_pypi_url)" dist/*
+            env:
+              UV_PUBLISH_USERNAME: $(jfrog_bot_username)
+              # secrets aren't exposed to scripts unless mapped explicitly
+              UV_PUBLISH_PASSWORD: $(jfrog-bot-token)
+            displayName: 'Upload to JFrog Artifactory'
+
+  # Mirrors the Read the Docs build (.readthedocs.yaml, fail_on_warning) so doc
+  # breakage shows up here before merge. Dependencies come via JFrog, as in Test.
+  - stage: Docs
+    displayName: 'Sphinx - Docs Build'
+    dependsOn: DevBuild
+    # DevBuild is skipped on PR builds and other branches; still build docs then.
+    condition: and(not(canceled()), in(dependencies.DevBuild.result, 'Succeeded', 'Skipped'))
+    jobs:
+      - job: BuildDocs
+        displayName: 'Build docs (warnings as errors)'
+        steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: '3.12'
+              addToPath: true
+              architecture: 'x64'
+
+          - task: JFrogPip@1
+            displayName: 'Install uv (via JFrog)'
+            inputs:
+              artifactoryConnection: 'service-ado-jfrog-geodigital'
+              command: 'install'
+              arguments: '"uv>=0.12.9,<0.13"'
+              targetResolveRepo: 'gswa-pypi-virtual'
+
+          - script: |
+              uv --version
+              uv export --locked --format requirements-txt --output-file requirements-docs.txt
+            displayName: 'Export pinned requirements from uv.lock'
+
+          - script: |
+              uv venv
+              uv pip sync --verbose requirements-docs.txt \
+                --index-url "https://$(jfrog_bot_username):${JFROG_TOKEN}@$(jfrog_host)/artifactory/api/pypi/gswa-pypi-virtual/simple"
+            env:
+              # secrets aren't exposed to scripts unless mapped explicitly
+              JFROG_TOKEN: $(jfrog-bot-token)
+              # use the interpreter from UsePythonVersion rather than downloading one
+              UV_PYTHON_PREFERENCE: only-system
+            displayName: 'Install locked dependencies with uv (via JFrog)'
+
+          # --fail-on-warning: fails the build on any warning, after reporting all of them.
+          # Full output is tee'd and warnings written separately for the logs artifact.
+          - script: |
+              set -o errexit -o nounset -o pipefail
+              mkdir --parents doc/build/logs
+              uv run --no-sync python -m sphinx --show-traceback --no-color --fail-on-warning \
+                --warning-file doc/build/logs/sphinx-warnings.log \
+                --builder html doc/source doc/build/html 2>&1 | tee doc/build/logs/sphinx-build.log
+            displayName: 'Build docs with Sphinx'
+
+          # logs only, not the HTML; JobAttempt keeps the name unique when a job is re-run
+          - task: PublishPipelineArtifact@1
+            condition: succeededOrFailed()
+            inputs:
+              targetPath: doc/build/logs
+              artifactName: docs-logs-$(System.JobAttempt)
+            displayName: 'Publish Sphinx logs'
+
+  # Uploads DevBuild's `dist` artifact (no rebuild) to TestPyPI: dev versions
+  # from main and cicd/*, and the release version from v* tags ahead of PyPI.
+  - stage: TestRelease
+    displayName: 'Publish to TestPyPI'
+    dependsOn: DevBuild
+    condition: and( succeeded('DevBuild'), or(eq(variables.isMain, true), eq(variables.isCICD, true), eq(variables.isTag, true)) )
+    jobs:
+      - job: UploadTestPyPI
+        displayName: 'Upload dist to TestPyPI'
+        steps:
+          - checkout: none
+
+          - download: current
+            artifact: dist
+            displayName: 'Download dist artifact'
+
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: '3.12'
+              addToPath: true
+              architecture: 'x64'
+
+          - task: JFrogPip@1
+            displayName: 'Install uv (via JFrog)'
+            inputs:
+              artifactoryConnection: 'service-ado-jfrog-geodigital'
+              command: 'install'
+              arguments: '"uv>=0.12.9,<0.13"'
+              targetResolveRepo: 'gswa-pypi-virtual'
+
+          # --check-url skips files already on TestPyPI, so re-running the job doesn't fail
+          - script: |
+              ls --format=long --all --human-readable "$(Pipeline.Workspace)/dist"
+              uv publish --verbose \
+                --publish-url https://test.pypi.org/legacy/ \
+                --check-url https://test.pypi.org/simple/ \
+                "$(Pipeline.Workspace)"/dist/*
+            env:
+              # secrets aren't exposed to scripts unless mapped explicitly
+              UV_PUBLISH_TOKEN: $(test_pypi_token_global)
+            displayName: 'Upload to TestPyPI'
+
+  # Releases to PyPI from v* tags only, once the same files are on TestPyPI, the
+  # docs build cleanly, and an approver signs off. DevBuild has already checked the tag matches pyproject.toml.
+  - stage: Release
+    displayName: 'Publish to PyPI'
+    dependsOn:
+      - TestRelease
+      - Docs
+    condition: and( succeeded('TestRelease'), succeeded('Docs'), eq(variables.isTag, true) )
+    jobs:
+      # deployment job: the pypi environment holds the release approval and a
+      # branch control check (refs/tags/v*), configured in ADO, not in this file
+      - deployment: UploadPyPI
+        displayName: 'Upload dist to PyPI'
+        environment: pypi
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - download: current
+                  artifact: dist
+                  displayName: 'Download dist artifact'
+
+                - task: UsePythonVersion@0
+                  inputs:
+                    versionSpec: '3.12'
+                    addToPath: true
+                    architecture: 'x64'
+
+                - task: JFrogPip@1
+                  displayName: 'Install uv (via JFrog)'
+                  inputs:
+                    artifactoryConnection: 'service-ado-jfrog-geodigital'
+                    command: 'install'
+                    arguments: '"uv>=0.12.9,<0.13"'
+                    targetResolveRepo: 'gswa-pypi-virtual'
+
+                - script: |
+                    ls --format=long --all --human-readable "$(Pipeline.Workspace)/dist"
+                    uv publish --verbose \
+                      --check-url https://pypi.org/simple/ \
+                      "$(Pipeline.Workspace)"/dist/*
+                  env:
+                    # secrets aren't exposed to scripts unless mapped explicitly
+                    UV_PUBLISH_TOKEN: $(pypi_token_global)
+                  displayName: 'Upload to PyPI'

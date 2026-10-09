@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "pytsg"
-version = "0.5.0"
+version = "1.0.0.dev0"
 description = "Library to read .tsg file package"
 license = "MIT"
 readme = "README.md"
@@ -13,7 +13,7 @@ dependencies = [
     "pandas>=2.3.0",
     "simplejpeg>=1.9.0",
     "scipy>=1.16.0",
-    'dhcomp',
+    'dhcomp'
 ]
 keywords = [
     "tsg",
