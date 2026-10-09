@@ -136,7 +136,9 @@ stages:
               cat ~/.config/uv/uv.toml
             displayName: 'Point uv at JFrog'
 
-          - script: jf curation-audit
+          # --include-cached-packages: Curation only evaluates packages when they first enter
+          # the remote cache, so without it anything already cached passes the audit unchecked
+          - script: jf curation-audit --include-cached-packages
             env:
               # logs the uv lock command and index jf uses, and each package request
               JFROG_CLI_LOG_LEVEL: DEBUG
