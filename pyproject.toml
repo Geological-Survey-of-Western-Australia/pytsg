@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "pytsg"
-version = "1.0.0.dev0"
+version = "1.0.0"
 description = "Library to read .tsg file package"
 license = "MIT"
 readme = "README.md"
